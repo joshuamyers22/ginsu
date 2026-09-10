@@ -147,3 +147,29 @@ plot data is expanded.
 These are descriptive diagnostics across caller-declared runs. They do not
 establish significance, causality, or robustness beyond the supplied
 partitions and configurations.
+
+Analysis comparison
+-------------------
+
+.. code:: python
+
+   from ginsu.plotting import plot_comparison
+
+   movement = plot_comparison(
+       comparison,
+       kind="dumbbell",
+       metric="error_lift",
+   )
+   migration = plot_comparison(comparison, kind="migration")
+
+The dumbbell view connects baseline and candidate discovery metrics for exact
+or related rule pairs. Emerged and resolved rules retain their single endpoint
+instead of disappearing. The migration view requires a caller-identified
+common reference population and stacks baseline-only, shared, and
+candidate-only membership counts for each pair; neither counts and Jaccard
+remain in hover detail.
+
+Comparison plot data is bounded by ``max_changes`` before Plotly is loaded.
+Incompatible analyses render their compatibility status explicitly. These
+figures are descriptive and per-rule: overlapping slices make a sum across
+bars or excess-error deltas non-attributive.

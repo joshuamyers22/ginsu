@@ -50,6 +50,9 @@ after the pre-1.0 API is established.
 - Bounded one-to-one analysis comparison with exact, predicate, or
   common-reference membership matching; metric and predicate deltas;
   migration counts; and explicit emerged, resolved, or non-comparable results.
+- Bounded Polars-native comparison dumbbell and common-reference membership
+  migration data, with optional Plotly renderers that retain unmatched and
+  incompatible outcomes.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed

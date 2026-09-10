@@ -26,6 +26,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `anchor-stability-similarity` | Related-rule recurrence is a separate anchor-based report using predicate-set or verified common-reference membership Jaccard; it does not merge canonical IDs or form transitive fuzzy clusters. | `docs/adr/0009-anchor-based-stability-similarity.md`; `ginsu/stability.py`; `tests/test_stability.py` | 2026-09-10 |
 | `stability-visualization` | Stability and scalar-parameter sensitivity use bounded Polars plot rows, unconnected run observations, and explicit present/absent/unavailable evidence; Plotly remains optional. | `docs/adr/0010-stability-sensitivity-visualization.md`; `ginsu/_stability_plot_data.py`; `ginsu/plotting.py`; `tests/test_plotting.py` | 2026-09-10 |
 | `analysis-comparison` | Exhaustive artifacts compare through exact-first deterministic one-to-one predicate or common-reference membership matching; incompatible schemas/plans remain non-comparable and error-lift deltas drive direction labels. | `docs/adr/0011-auditable-analysis-comparison.md`; `ginsu/comparison.py`; `tests/test_comparison.py` | 2026-09-10 |
+| `comparison-visualization` | Comparison dumbbells retain paired and unmatched metric endpoints; migration bars require common-reference evidence and remain per-rule rather than additive across overlapping slices. | `docs/adr/0012-bounded-comparison-visualization.md`; `ginsu/_comparison_plot_data.py`; `ginsu/plotting.py`; `tests/test_comparison_plotting.py` | 2026-09-10 |
 
 ## Non-obvious current state
 
@@ -45,6 +46,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `stability-similarity` | Canonical predicate Jaccard and membership Jaccard on caller-identified, ordered-row-fingerprinted common references produce bounded deterministic best-match audit tables and summaries. | `ginsu/stability.py`; `tests/test_stability.py`; `docs/source/Stability.rst` | 2026-09-10 |
 | `stability-plotting` | Exact and similarity stability reports render frequency/distribution plus full run-evidence panels; sensitivity reads canonical scalar run parameters and never connects observed configurations. | `ginsu/_stability_plot_data.py`; `ginsu/plotting.py`; `tests/test_plotting.py`; `docs/source/Visualization.rst` | 2026-09-10 |
 | `comparison-foundation` | Analysis comparison retains exact/related/unmatched rules, metric and predicate deltas, and reference migration counts under fail-fast limits; non-comparability is a typed result. | `ginsu/comparison.py`; `tests/test_comparison.py`; `docs/source/Comparison.rst` | 2026-09-10 |
+| `comparison-plotting` | Bounded Polars data and lazy Plotly views show baseline/candidate discovery-metric movement and common-reference membership migration while preserving emerged, resolved, empty, and incompatible outcomes. | `ginsu/_comparison_plot_data.py`; `ginsu/plotting.py`; `tests/test_comparison_plotting.py`; `docs/source/Comparison.rst` | 2026-09-10 |
 
 ## Verified traps
 

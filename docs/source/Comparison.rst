@@ -76,6 +76,46 @@ union has null Jaccard rather than zero or one.
 ``reference_id`` is caller-declared provenance. Ginsu does not infer which
 columns, ordering, or privacy treatment belong in the identifier.
 
+Visualization
+-------------
+
+The optional dumbbell view compares one discovery metric while keeping
+one-sided emerged and resolved rules visible:
+
+.. code:: python
+
+   from ginsu.plotting import plot_comparison
+
+   figure = plot_comparison(
+       comparison,
+       kind="dumbbell",
+       metric="error_lift",
+       max_changes=100,
+   )
+
+Supported metrics are rank, SliceLine score, support count, support fraction,
+error lift, and excess error. Baseline and candidate endpoints are distinct;
+matched endpoints are connected. Rank reverses the metric axis so rank one
+remains visually strongest. These are descriptive discovery metrics, not
+validation or significance results.
+
+When the comparison includes common-reference evidence, a stacked migration
+view shows the baseline-only, shared, and candidate-only memberships for every
+rule pair:
+
+.. code:: python
+
+   figure = plot_comparison(comparison, kind="migration", max_changes=100)
+
+Neither counts, unions, and membership Jaccard remain in hover evidence. Each
+bar describes one independently evaluated rule pair. Because slices can
+overlap, bars and excess-error deltas must not be summed into a regression
+waterfall without a separate non-overlapping allocation policy.
+
+Both plot-data paths check ``max_changes`` before rendering. A non-comparable
+report produces an explicit status figure rather than a blank chart or forced
+match. Plotly remains optional; the normalized plot-data contracts use Polars.
+
 Compatibility and limits
 ------------------------
 

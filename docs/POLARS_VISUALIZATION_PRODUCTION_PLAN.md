@@ -38,9 +38,10 @@ rows. Bounded stability and scalar hyperparameter-sensitivity data and Plotly
 views are implemented with explicit unavailable-run evidence. Automated
 parameter-grid execution remains caller-controlled. The artifact comparison
 foundation now implements exact/predicate/membership matching, metric and rule
-deltas, migration counts, and explicit incompatible results. Comparison plots,
-validation/stability-status deltas, structured time-window metadata, notebook
-migration, and release hardening remain open.
+deltas, migration counts, and explicit incompatible results. Bounded comparison
+dumbbells and common-reference membership-migration views are implemented.
+Overlap-adjusted attribution, validation/stability-status deltas, structured
+time-window metadata, notebook migration, and release hardening remain open.
 
 ## 1. Executive summary
 
@@ -674,7 +675,8 @@ Outputs:
 - membership migration on a common reference population;
 - feature/predicate drift;
 - validation and stability-status changes; and
-- an aggregate regression waterfall suitable for a release review.
+- overlap-adjusted aggregate attribution suitable for a release review, after
+  a non-overlapping allocation contract is approved.
 
 Comparison requires compatible feature semantics and discretization-plan
 versions. Incompatible schemas produce an explicit non-comparable result; they
@@ -922,15 +924,18 @@ plot_sensitivity(stability_report, parameter="alpha", metric="rank")
 ### 7.8 Model/time comparison plots
 
 ```python
-plot_comparison(comparison, kind="waterfall")
+plot_comparison(comparison, kind="dumbbell", metric="error_lift")
+plot_comparison(comparison, kind="migration")
 ```
 
-- Waterfall: aggregate excess-error changes attributable to matched slices.
-- Dumbbell/slope: baseline versus candidate validation error lift and support.
+- Dumbbell/slope: baseline versus candidate discovery metrics, with validation
+  metrics added only after their evidence contract is carried by comparisons.
 - Migration matrix: membership movement on the fixed reference population.
 - Timeline: slice metrics across explicitly bounded event-time windows.
 - Always show unmatched and non-comparable slices; do not force a match to make
   the chart complete.
+- Do not aggregate overlapping slice totals into a waterfall until a tested,
+  non-overlapping allocation policy defines how contribution is assigned.
 
 ### 7.9 Search-profile plot
 
@@ -1212,7 +1217,8 @@ Deliverables:
 
 - Add `compare_analyses` with exact, semantic, unmatched, and non-comparable
   outcomes.
-- Add delta tables, waterfall, slope, membership-migration, and timeline plots.
+- Add delta tables, bounded dumbbell and membership-migration plots, then add
+  timelines and any waterfall only after their time/allocation contracts.
 - Add display thresholds, raw-point suppression, field allowlists, redaction,
   and sensitive-feature annotations.
 - Add explicit time-window, timezone, reference-population, and label-availability

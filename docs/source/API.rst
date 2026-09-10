@@ -127,3 +127,9 @@ Plotting
 .. autofunction:: ginsu.plotting.plot_overlap
 
 .. autofunction:: ginsu.plotting.plot_lattice
+
+.. autofunction:: ginsu.plotting.plot_stability
+
+.. autofunction:: ginsu.plotting.plot_sensitivity
+
+.. autofunction:: ginsu.plotting.plot_comparison

@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import polars as pl
 
+from ginsu._comparison_plot_data import (
+    ComparisonPlotMetric,
+    comparison_dumbbell_data,
+    comparison_migration_data,
+)
 from ginsu._plot_data import (
     error_dependence_data,
     error_dependence_summary,
@@ -21,6 +26,7 @@ from ginsu._stability_plot_data import (
     sensitivity_plot_data,
     stability_plot_data,
 )
+from ginsu.comparison import AnalysisComparison
 
 
 def plot_impact(finder: Any):
@@ -670,6 +676,204 @@ def plot_sensitivity(
     )
     figure.update_yaxes(title_text="Slice rule", row=2, col=1)
     return figure
+
+
+def plot_comparison(
+    comparison: AnalysisComparison,
+    *,
+    kind: Literal["dumbbell", "migration"] = "dumbbell",
+    metric: ComparisonPlotMetric = "error_lift",
+    max_changes: int = 100,
+):
+    """Plot bounded metric movement or common-reference membership migration."""
+    if kind not in ("dumbbell", "migration"):
+        raise ValueError("kind must be 'dumbbell' or 'migration'.")
+    if not isinstance(comparison, AnalysisComparison):
+        raise TypeError("comparison must be an AnalysisComparison.")
+    if kind == "migration":
+        data = comparison_migration_data(comparison, max_changes=max_changes)
+    else:
+        data = comparison_dumbbell_data(
+            comparison, metric=metric, max_changes=max_changes
+        )
+    go = _plotly_graph_objects()
+    if not comparison.comparable:
+        summary = comparison.summary.row(0, named=True)
+        figure = go.Figure()
+        figure.add_annotation(
+            text=(
+                f"{summary['compatibility_status']}: "
+                f"{summary['compatibility_reason']}"
+            ),
+            showarrow=False,
+        )
+        figure.update_layout(
+            title="Ginsu analysis comparison: not comparable",
+            template="plotly_white",
+        )
+        return figure
+    if kind == "migration":
+        return _plot_comparison_migration(comparison, data=data, go=go)
+    return _plot_comparison_dumbbell(data, go=go, metric=metric)
+
+
+def _plot_comparison_dumbbell(
+    data: pl.DataFrame,
+    *,
+    go: Any,
+    metric: ComparisonPlotMetric,
+):
+    figure = go.Figure()
+    if not data.height:
+        figure.add_annotation(text="No comparison changes", showarrow=False)
+    else:
+        paired = data.filter(
+            pl.col("baseline_value").is_not_null()
+            & pl.col("candidate_value").is_not_null()
+        )
+        line_x: list[float | None] = []
+        line_y: list[str | None] = []
+        for row in paired.iter_rows(named=True):
+            line_x.extend(
+                [row["baseline_value"], row["candidate_value"], None]
+            )
+            line_y.extend([row["label"], row["label"], None])
+        if line_x:
+            figure.add_trace(
+                go.Scatter(
+                    x=line_x,
+                    y=line_y,
+                    mode="lines",
+                    name="Change",
+                    line={"color": "#b8b8b8", "width": 2},
+                    hoverinfo="skip",
+                )
+            )
+        for side, color, symbol in (
+            ("baseline", "#4c78a8", "circle"),
+            ("candidate", "#f58518", "diamond"),
+        ):
+            side_data = data.filter(pl.col(f"{side}_value").is_not_null())
+            figure.add_trace(
+                go.Scatter(
+                    x=side_data[f"{side}_value"].to_list(),
+                    y=side_data["label"].to_list(),
+                    mode="markers",
+                    name=side.title(),
+                    marker={"color": color, "size": 10, "symbol": symbol},
+                    customdata=side_data.select(
+                        "comparison_status",
+                        "match_type",
+                        "similarity",
+                        "delta",
+                    ).to_numpy(),
+                    hovertemplate=(
+                        "%{y}<br>Value=%{x:.4g}"
+                        "<br>Status=%{customdata[0]}"
+                        "<br>Match=%{customdata[1]}"
+                        "<br>Similarity=%{customdata[2]}"
+                        "<br>Candidate − baseline=%{customdata[3]}"
+                        "<extra>%{fullData.name}</extra>"
+                    ),
+                )
+            )
+    figure.update_layout(
+        title=f"Ginsu analysis comparison: {metric}",
+        xaxis_title=_comparison_metric_label(metric),
+        yaxis_title="Rule change",
+        template="plotly_white",
+        height=max(420, 34 * data.height + 220),
+        annotations=[
+            *list(figure.layout.annotations),
+            {
+                "text": (
+                    "Descriptive discovery metrics; emerged and resolved "
+                    "rules remain explicit."
+                ),
+                "showarrow": False,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0,
+                "y": 1.10,
+                "xanchor": "left",
+            },
+        ],
+    )
+    figure.update_yaxes(autorange="reversed")
+    if metric == "rank":
+        figure.update_xaxes(autorange="reversed")
+    return figure
+
+
+def _plot_comparison_migration(
+    comparison: AnalysisComparison, *, data: pl.DataFrame, go: Any
+):
+    figure = go.Figure()
+    for segment, label, color in (
+        ("baseline_only", "Baseline only", "#4c78a8"),
+        ("both", "Shared", "#54a24b"),
+        ("candidate_only", "Candidate only", "#f58518"),
+    ):
+        group = data.filter(pl.col("membership_segment") == segment)
+        figure.add_trace(
+            go.Bar(
+                x=group["membership_count"].to_list(),
+                y=group["label"].to_list(),
+                orientation="h",
+                name=label,
+                marker_color=color,
+                customdata=group.select(
+                    "comparison_status",
+                    "reference_neither_count",
+                    "reference_union_count",
+                    "reference_jaccard",
+                ).to_numpy(),
+                hovertemplate=(
+                    "%{y}<br>Rows=%{x}<br>Status=%{customdata[0]}"
+                    "<br>Neither=%{customdata[1]}"
+                    "<br>Union=%{customdata[2]}"
+                    "<br>Jaccard=%{customdata[3]}<extra>%{fullData.name}</extra>"
+                ),
+            )
+        )
+    if not data.height:
+        figure.add_annotation(text="No comparison changes", showarrow=False)
+    figure.update_layout(
+        title="Ginsu reference membership migration",
+        xaxis_title="Reference rows",
+        yaxis_title="Rule change",
+        barmode="stack",
+        template="plotly_white",
+        height=max(420, 34 * comparison.changes.height + 220),
+        annotations=[
+            *list(figure.layout.annotations),
+            {
+                "text": (
+                    f"Reference: {comparison.reference_id}. Each bar is one "
+                    "rule pair, not an additive attribution."
+                ),
+                "showarrow": False,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0,
+                "y": 1.10,
+                "xanchor": "left",
+            },
+        ],
+    )
+    figure.update_yaxes(autorange="reversed")
+    return figure
+
+
+def _comparison_metric_label(metric: ComparisonPlotMetric) -> str:
+    return {
+        "rank": "Discovery rank",
+        "slice_score": "Slice score",
+        "support_count": "Support count",
+        "support_fraction": "Support fraction",
+        "error_lift": "Observed error lift",
+        "excess_error": "Observed excess error",
+    }[metric]
 
 
 def _run_evidence_matrix(data, *, rules, run_ids):
