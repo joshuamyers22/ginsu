@@ -1,25 +1,34 @@
 init:
 	python3 -m pip install --upgrade pip
 	pip3 install uv
-	uv sync --all-extras
+	uv sync --frozen --all-extras
 
 lint:
 	uv run ruff check . --fix
 	uv run ruff format .
 
 check:
-	uv run ruff check .
-	uv run ruff format --check .
+	uv run --frozen ruff check .
+	uv run --frozen ruff format --check .
+	uv run --frozen mypy
+	uv run --frozen pytest
+	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E docs/source docs/build
+
+typecheck:
+	uv run --frozen mypy
 
 test:
-	uv run coverage run -m pytest
-	uv run coverage report -m
+	uv run --frozen coverage run -m pytest
+	uv run --frozen coverage report -m
+
+benchmark:
+	uv run --frozen pytest -m performance --benchmark-only
 
 doc:
-	uv run sphinx-build -a docs/source docs/build
+	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E docs/source docs/build
 
 notebook:
-	uv run jupyter notebook
+	uv run --frozen jupyter notebook
 
 execute-notebooks:
-	uv run jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb --ExecutePreprocessor.timeout=600
+	uv run --frozen jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb --ExecutePreprocessor.timeout=600

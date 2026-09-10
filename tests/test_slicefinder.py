@@ -4,16 +4,27 @@ Tests are run on different Experiments.
 """
 
 import numpy as np
+import pandas as pd
 import pytest
 from scipy import sparse as sp
 
-from sliceline import slicefinder
+from ginsu import slicefinder
 
 
-def test_dummify(benchmark, basic_test_data):
+@pytest.fixture
+def run_once():
+    """Execute inherited correctness assertions exactly once."""
+
+    def run(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    return run
+
+
+def test_dummify(run_once, basic_test_data):
     """Test _dummify method."""
     array = np.array([1, 3, 5, 6, 7, 8, 13, 15])
-    computed = benchmark(
+    computed = run_once(
         basic_test_data["slicefinder_model"]._dummify,
         array,
         basic_test_data["n_col_x_encoded"],
@@ -24,7 +35,7 @@ def test_dummify(benchmark, basic_test_data):
     )
 
 
-def test_maintain_top_k(benchmark, basic_test_data):
+def test_maintain_top_k(run_once, basic_test_data):
     """Test _maintain_top_k method."""
     statistics = np.array(
         [
@@ -40,7 +51,7 @@ def test_maintain_top_k(benchmark, basic_test_data):
         ]
     )
 
-    computed_tk, computed_tkc = benchmark(
+    computed_tk, computed_tkc = run_once(
         basic_test_data["slicefinder_model"]._maintain_top_k,
         basic_test_data["candidates"],
         statistics,
@@ -64,7 +75,7 @@ def test_maintain_top_k(benchmark, basic_test_data):
     assert np.array_equal(computed_tkc, expected_tkc)
 
 
-def test_score_ub(benchmark, basic_test_data):
+def test_score_ub(run_once, basic_test_data):
     """Test _score_ub method."""
     slice_sizes_ub = np.array(
         [
@@ -160,7 +171,7 @@ def test_score_ub(benchmark, basic_test_data):
         ]
     )
 
-    computed = benchmark(
+    computed = run_once(
         basic_test_data["slicefinder_model"]._score_ub,
         slice_sizes_ub,
         slice_errors_ub,
@@ -201,7 +212,7 @@ def test_score_ub(benchmark, basic_test_data):
     assert np.array_equal(computed, expected)
 
 
-def test_analyse_top_k(benchmark, basic_test_data):
+def test_analyse_top_k(run_once, basic_test_data):
     """Test _analyse_top_k method."""
     top_k_statistics = np.array(
         [
@@ -210,7 +221,7 @@ def test_analyse_top_k(benchmark, basic_test_data):
         ]
     )
 
-    computed_maxsc, computed_minsc = benchmark(
+    computed_maxsc, computed_minsc = run_once(
         basic_test_data["slicefinder_model"]._analyse_top_k, top_k_statistics
     )
     expected_maxsc, expected_minsc = 0.8999999999999999, 0.8666666666666666
@@ -218,13 +229,13 @@ def test_analyse_top_k(benchmark, basic_test_data):
     assert computed_minsc == expected_minsc
 
 
-def test_score(benchmark, basic_test_data):
+def test_score(run_once, basic_test_data):
     """Test _score method."""
     slice_sizes = np.array([3, 4, 4])
     slice_errors = np.array([3, 3, 4])
     n_row_x_encoded = 8
 
-    computed = benchmark(
+    computed = run_once(
         basic_test_data["slicefinder_model"]._score,
         slice_sizes,
         slice_errors,
@@ -240,9 +251,9 @@ def test_score(benchmark, basic_test_data):
     assert np.array_equal(computed, expected)
 
 
-def test_eval_slice(benchmark, basic_test_data):
+def test_eval_slice(run_once, basic_test_data):
     """Test _eval_slice method."""
-    computed = benchmark(
+    computed = run_once(
         basic_test_data["slicefinder_model"]._eval_slice,
         basic_test_data["X_encoded"],
         basic_test_data["errors"],
@@ -259,9 +270,9 @@ def test_eval_slice(benchmark, basic_test_data):
     assert np.array_equal(computed, expected)
 
 
-def test_create_and_score_basic_slices(benchmark, basic_test_data):
+def test_create_and_score_basic_slices(run_once, basic_test_data):
     """Test _create_and_score_basic_slices method."""
-    computed_slices, computed_statistics = benchmark(
+    computed_slices, computed_statistics = run_once(
         basic_test_data["slicefinder_model"]._create_and_score_basic_slices,
         basic_test_data["X_encoded"],
         basic_test_data["n_col_x_encoded"],
@@ -286,7 +297,7 @@ def test_create_and_score_basic_slices(benchmark, basic_test_data):
     assert np.array_equal(computed_statistics, expected_r)
 
 
-def test_get_pair_candidates(benchmark, basic_test_data):
+def test_get_pair_candidates(run_once, basic_test_data):
     """Test _get_pair_candidates method."""
     statistics = np.array(
         [
@@ -301,7 +312,7 @@ def test_get_pair_candidates(benchmark, basic_test_data):
         ]
     )
 
-    computed = benchmark(
+    computed = run_once(
         basic_test_data["slicefinder_model"]._get_pair_candidates,
         basic_test_data["slices"],
         statistics,
@@ -318,7 +329,7 @@ def test_get_pair_candidates(benchmark, basic_test_data):
 
 
 def test_get_pair_candidates_with_missing_parents_pruning(
-    benchmark, basic_test_data
+    run_once, basic_test_data
 ):
     """Test _get_pair_candidates where missing parents are present in pruning."""
     slices = sp.csr_matrix(
@@ -352,7 +363,7 @@ def test_get_pair_candidates_with_missing_parents_pruning(
         [[False, False, True, False, False, True, True, False]]
     )
 
-    computed = benchmark(
+    computed = run_once(
         slicefinder_model_parents_pruning._get_pair_candidates,
         slices,
         statistics,
@@ -367,9 +378,9 @@ def test_get_pair_candidates_with_missing_parents_pruning(
     assert np.array_equal(computed, expected)
 
 
-def test_search_slices(benchmark, basic_test_data):
+def test_search_slices(run_once, basic_test_data):
     """Test _search_slices method."""
-    benchmark(
+    run_once(
         basic_test_data["slicefinder_model"]._search_slices,
         basic_test_data["X"],
         basic_test_data["errors"],
@@ -428,7 +439,7 @@ def test_search_slices(benchmark, basic_test_data):
         "experiment_17",
     ],
 )
-def test_experiments(benchmark, experiments, experiment_name):
+def test_experiments(run_once, experiments, experiment_name):
     """Test fit method on different experiments."""
     experiment = experiments[experiment_name]
 
@@ -439,7 +450,7 @@ def test_experiments(benchmark, experiments, experiment_name):
         min_sup=experiment.min_sup,
         verbose=experiment.verbose,
     )
-    benchmark(
+    run_once(
         slicefinder_model.fit,
         experiment.input_dataset,
         experiment.input_errors,
@@ -455,9 +466,9 @@ def test_experiments(benchmark, experiments, experiment_name):
     )
 
 
-def test_transform(benchmark, basic_test_data):
+def test_transform(run_once, basic_test_data):
     """Test transform method."""
-    computed = benchmark(
+    computed = run_once(
         basic_test_data["slicefinder_model"].fit_transform,
         basic_test_data["X"],
         basic_test_data["errors"],
@@ -468,12 +479,12 @@ def test_transform(benchmark, basic_test_data):
     assert np.array_equal(computed, expected)
 
 
-def test_get_slice(benchmark, basic_test_data):
+def test_get_slice(run_once, basic_test_data):
     """Test get_slice method."""
     basic_test_data["slicefinder_model"].fit(
         basic_test_data["X"], basic_test_data["errors"]
     )
-    computed_slice = benchmark(
+    computed_slice = run_once(
         basic_test_data["slicefinder_model"].get_slice,
         basic_test_data["X"],
         0,
@@ -484,8 +495,8 @@ def test_get_slice(benchmark, basic_test_data):
     assert np.array_equal(computed_slice, expected_slice)
 
 
-def test_get_slice_with_nan(benchmark, basic_test_data):
-    """Test get_slice method with NaN values in the dataset."""
+def test_get_slice_rejects_nan(run_once, basic_test_data):
+    """Test get_slice rejects NaN values before schema conversion."""
     basic_test_data["slicefinder_model"].fit(
         basic_test_data["X"], basic_test_data["errors"]
     )
@@ -498,17 +509,12 @@ def test_get_slice_with_nan(benchmark, basic_test_data):
             [3, 3, 3, 1, 3, 1, 2, 1],
         ]
     ).T
-    computed_slice_nan_case = benchmark(
-        basic_test_data["slicefinder_model"].get_slice,
-        dataset_nan_case,
-        0,
-    )
-    expected_slice_nan_case = np.array(
-        [[1, 1, 2, 3], [1, 1, 3, 3], [1, 1, np.nan, 1]]
-    )
-    assert np.array_equal(
-        computed_slice_nan_case, expected_slice_nan_case, equal_nan=True
-    )
+    with pytest.raises(ValueError, match="must not contain NaN"):
+        run_once(
+            basic_test_data["slicefinder_model"].get_slice,
+            dataset_nan_case,
+            0,
+        )
 
 
 class TestParameterValidation:
@@ -586,11 +592,64 @@ class TestParameterValidation:
         model.fit(basic_test_data["X"], basic_test_data["errors"])
         assert model.top_slices_ is not None
 
+    @pytest.mark.parametrize("min_sup,expected", [(0.01, 1), (0.26, 3)])
+    def test_fractional_min_sup_rounds_up(
+        self, basic_test_data, min_sup, expected
+    ):
+        """A positive support fraction must never round down."""
+        model = slicefinder.Slicefinder(min_sup=min_sup)
+        model.fit(basic_test_data["X"], basic_test_data["errors"])
+
+        assert model._min_sup_actual == expected
+
     def test_valid_min_sup_integer(self, basic_test_data):
         """Test that min_sup as integer is valid."""
         model = slicefinder.Slicefinder(min_sup=2)
         model.fit(basic_test_data["X"], basic_test_data["errors"])
         assert model.top_slices_ is not None
+
+
+class TestErrorValidation:
+    """Test the nonnegative per-observation loss contract."""
+
+    def test_all_zero_errors_are_rejected(self, basic_test_data):
+        model = slicefinder.Slicefinder(min_sup=1)
+
+        with pytest.raises(ValueError, match="at least one positive"):
+            model.fit(
+                basic_test_data["X"],
+                np.zeros(basic_test_data["X"].shape[0]),
+            )
+
+    def test_negative_errors_are_rejected(self, basic_test_data):
+        model = slicefinder.Slicefinder(min_sup=1)
+        errors = basic_test_data["errors"].astype(float)
+        errors[0] = -1.0
+
+        with pytest.raises(ValueError, match="nonnegative"):
+            model.fit(basic_test_data["X"], errors)
+
+
+class TestNamedSchemaValidation:
+    """Test that named feature identity is preserved after fitting."""
+
+    def test_reordered_columns_are_rejected(self, basic_test_data):
+        columns = ["a", "b", "c", "d"]
+        frame = pd.DataFrame(basic_test_data["X"], columns=columns)
+        model = slicefinder.Slicefinder(k=2, max_l=2, min_sup=1)
+        model.fit(frame, basic_test_data["errors"])
+
+        with pytest.raises(ValueError, match="schema does not match"):
+            model.transform(frame[list(reversed(columns))])
+
+    def test_missing_column_is_rejected(self, basic_test_data):
+        columns = ["a", "b", "c", "d"]
+        frame = pd.DataFrame(basic_test_data["X"], columns=columns)
+        model = slicefinder.Slicefinder(k=2, max_l=2, min_sup=1)
+        model.fit(frame, basic_test_data["errors"])
+
+        with pytest.raises(ValueError, match="schema does not match"):
+            model.get_slice(frame.drop(columns="d"), 0)
 
 
 class TestMinSupMutation:
@@ -627,13 +686,17 @@ class TestNumbaFallback:
         original = slicefinder.NUMBA_AVAILABLE
         try:
             slicefinder.NUMBA_AVAILABLE = False
-            model = slicefinder.Slicefinder(alpha=0.95, k=2, max_l=2, min_sup=1)
-            X = np.array([
-                [1, 1, 1, 1, 1, 1, 2, 2],
-                [1, 1, 1, 1, 2, 2, 1, 1],
-                [1, 2, 3, 4, 5, 6, 7, 8],
-                [3, 3, 3, 1, 3, 1, 2, 1],
-            ]).T
+            model = slicefinder.Slicefinder(
+                alpha=0.95, k=2, max_l=2, min_sup=1
+            )
+            X = np.array(
+                [
+                    [1, 1, 1, 1, 1, 1, 2, 2],
+                    [1, 1, 1, 1, 2, 2, 1, 1],
+                    [1, 2, 3, 4, 5, 6, 7, 8],
+                    [3, 3, 3, 1, 3, 1, 2, 1],
+                ]
+            ).T
             errors = np.array([1, 1, 1, 1, 0, 0, 0, 0])
             model.fit(X, errors)
             assert model.top_slices_ is not None

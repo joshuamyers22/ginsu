@@ -1,5 +1,10 @@
 .. include:: ../../README.rst
 
 .. toctree::
+   :maxdepth: 2
 
-   Slicefinder
+   Interoperability
+   Discretization
+   Artifacts
+   Visualization
+   API

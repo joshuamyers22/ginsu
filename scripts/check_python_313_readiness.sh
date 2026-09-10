@@ -36,7 +36,7 @@ if echo "$PYTHON_VERSIONS" | grep -q "3.13"; then
     echo ""
     echo "✅ Python 3.13 IS SUPPORTED in optbinning $LATEST_VERSION!"
     echo ""
-    echo "🎉 Ready to add Python 3.13 support to sliceline!"
+    echo "🎉 Ready to add Python 3.13 support to Ginsu!"
     echo ""
     echo "Next steps:"
     echo "1. Review: docs/project_notes/python-3.13-readiness.md"

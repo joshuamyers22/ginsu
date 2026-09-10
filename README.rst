@@ -1,10 +1,11 @@
-Sliceline
-=========
+Ginsu
+=====
 
-Sliceline is a Python library for fast slice finding for Machine
-Learning model debugging.
+Ginsu is a Python library for fast slice finding for machine-learning model
+debugging.
 
-It is an implementation of `SliceLine: Fast, Linear-Algebra-based Slice
+It is an independent evolution of DataDome's BSD-licensed Sliceline
+implementation of `SliceLine: Fast, Linear-Algebra-based Slice
 Finding for ML Model
 Debugging <https://mboehm7.github.io/resources/sigmod2021b_sliceline.pdf>`__,
 from Svetlana Sagadeeva and Matthias Boehm of Graz University of
@@ -14,68 +15,74 @@ Technology.
 ------------------
 
 Given an input dataset ``X`` and a model error vector ``errors``,
-SliceLine finds the top slices in ``X`` that identify where a ML model
+Ginsu finds the top slices in ``X`` that identify where an ML model
 performs significantly worse.
 
-You can use sliceline as follows:
+You can use Ginsu as follows:
 
 .. code:: python
 
-   from sliceline.slicefinder import Slicefinder
+   import polars as pl
 
-   slice_finder = Slicefinder()
+   from ginsu import Slicefinder
+   from ginsu.plotting import plot_error_dependence, plot_impact
+
+   X = pl.DataFrame(
+       {
+           "region": ["east", "east", "west", "west"],
+           "tier": [1, 2, 1, 2],
+       }
+   )
+   errors = [4.0, 3.0, 1.0, 1.0]
+
+   slice_finder = Slicefinder(alpha=0.95, min_sup=1, verbose=False)
 
    slice_finder.fit(X, errors)
 
-   print(slice_finder.top_slices_)
+   print(slice_finder.slices_)
+   print(slice_finder.slice_statistics_)
 
-   X_trans = slice_finder.transform(X)
+   membership = slice_finder.transform(X)
+   stable_membership = slice_finder.membership_frame(X)
+   impact_figure = plot_impact(slice_finder)
+   dependence_figure = plot_error_dependence(
+       slice_finder, X, errors, feature="tier"
+   )
 
-We invite you to check the `demo
-notebooks <https://github.com/DataDome/sliceline/blob/main/notebooks>`__
-for a more thorough tutorial:
+Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
+compatible pandas and PyArrow tables enter through public Arrow or dataframe
+interchange protocols and produce Polars outputs. Ginsu production code does
+not import pandas.
 
-1. Implementing Sliceline on Titanic dataset
-2. Implementing Sliceline on California housing dataset
+The ``notebooks/`` directory contains more thorough tutorials:
+
+1. Implementing Ginsu on Titanic dataset
+2. Implementing Ginsu on California housing dataset
 
 🛠 Installation
 ---------------
 
-Sliceline is intended to work with **Python 3.10 or above**. Installation
-can be done with ``pip``:
+The ``ginsu`` distribution is not yet published. Install the working checkout
+while the first independent release is prepared:
 
 .. code:: sh
 
-   pip install sliceline
+   uv sync --frozen --all-extras
 
-There are `wheels
-available <https://pypi.org/project/sliceline/#files>`__ for Linux,
-MacOS, and Windows, which means that you most probably won’t have to
-build Sliceline from source.
-
-You can install the latest development version from GitHub as so:
-
-.. code:: sh
-
-   pip install git+https://github.com/DataDome/sliceline --upgrade
-
-Or, through SSH:
-
-.. code:: sh
-
-   pip install git+ssh://git@github.com/datadome/sliceline.git --upgrade
+Once published, plotting will remain optional and installable with
+``ginsu[plot]``.
 
 ⚡ Performance Optimization
 ---------------------------
 
-Sliceline includes optional Numba JIT compilation for **5-50x performance improvements** on scoring operations.
+Ginsu includes optional Numba JIT compilation for scoring operations.
 
 **Quick Installation:**
 
 .. code:: sh
 
    # With optimization support
-   pip install sliceline[optimized]
+   pip install ginsu[optimized]
 
 **Benefits:**
 
@@ -113,24 +120,26 @@ set ``NUMBA_CACHE_DIR`` to a writable path:
 
    ENV NUMBA_CACHE_DIR=/tmp/numba_cache
 
-If the cache directory is not writable, Sliceline will automatically fall back to pure NumPy.
+If the cache directory is not writable, Ginsu will automatically fall back to pure NumPy.
 
 **Verify Optimization:**
 
 .. code:: python
 
-   from sliceline import is_numba_available
+   from ginsu import is_numba_available
 
    print("Numba available:", is_numba_available())
 
-See the `performance benchmarks <https://github.com/DataDome/sliceline/tree/main/benchmarks>`__ for detailed metrics.
+See ``benchmarks/`` and ``NUMBA_OPTIMIZATION.md`` for current evidence and its
+limitations.
 
 🔗 Useful links
 ---------------
 
--  `Documentation <https://sliceline.readthedocs.io/en/stable/>`__
--  `Package releases <https://pypi.org/project/sliceline/#history>`__
+-  `Ginsu repository <https://github.com/joshuamyers22/ginsu>`__
+-  `Issue tracker <https://github.com/joshuamyers22/ginsu/issues>`__
 -  `SliceLine paper <https://mboehm7.github.io/resources/sigmod2021b_sliceline.pdf>`__
+-  `Upstream Sliceline project <https://github.com/DataDome/sliceline>`__
 
 👐 Contributing
 ---------------
@@ -138,21 +147,10 @@ See the `performance benchmarks <https://github.com/DataDome/sliceline/tree/main
 Feel free to contribute in any way you like, we’re always open to new
 ideas and approaches.
 
--  `Open a
-   discussion <https://github.com/DataDome/sliceline/discussions/new>`__
-   if you have any question or enquiry whatsoever. It’s more useful to
-   ask your question in public rather than sending us a private email.
-   It’s also encouraged to open a discussion before contributing, so
-   that everyone is aligned and unnecessary work is avoided.
--  Feel welcome to `open an
-   issue <https://github.com/DataDome/sliceline/issues/new/choose>`__ if
-   you think you’ve spotted a bug or a performance issue.
-
-Please check out the `contribution
-guidelines <https://github.com/DataDome/sliceline/blob/main/CONTRIBUTING.md>`__
-if you want to bring modifications to the code base.
+Read ``CONTRIBUTING.md`` before proposing or implementing a change.
 
 📝 License
 ----------
 
-Sliceline is free and open-source software licensed under the `3-clause BSD license <https://github.com/DataDome/sliceline/blob/main/LICENSE>`__.
+Ginsu is free and open-source software licensed under the 3-clause BSD license.
+The retained license notice records the upstream copyright.

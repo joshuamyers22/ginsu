@@ -1,4 +1,4 @@
-"""Numba-accelerated operations for Sliceline.
+"""Numba-accelerated operations for Ginsu.
 
 Provides JIT-compiled versions of performance-critical functions
 for 5-50x performance improvements in scoring and ID computation.
@@ -9,7 +9,7 @@ module will fall back to pure NumPy implementations.
 Installation:
     pip install numba
     # or
-    pip install sliceline[optimized]
+    pip install ginsu[optimized]
 """
 
 from __future__ import annotations

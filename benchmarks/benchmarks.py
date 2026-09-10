@@ -1,5 +1,5 @@
 """
-Benchmark Script for Sliceline Performance Testing with Numba Optimization.
+Benchmark Script for Ginsu Performance Testing with Numba Optimization.
 
 This script profiles the performance of Slicefinder with and without Numba
 JIT compilation across different dataset sizes to measure speedup ratios.
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sliceline import Slicefinder, is_numba_available  # noqa: E402
+from ginsu import Slicefinder, is_numba_available  # noqa: E402
 
 RANDOM_SEED = 42
 
@@ -273,7 +273,7 @@ def run_benchmarks_without_numba() -> dict[str, Any]:
     """
     results = {}
 
-    with patch("sliceline.slicefinder.NUMBA_AVAILABLE", False):
+    with patch("ginsu.slicefinder.NUMBA_AVAILABLE", False):
         for size_name, config in DATASET_CONFIGS.items():
             logger.info("Benchmarking %s dataset without numba...", size_name)
             X, errors = generate_synthetic_data(
@@ -570,7 +570,7 @@ def main() -> int:
         Exit code (0 for success, 1 for failure).
     """
     print("=" * 80)
-    print("Sliceline Numba Optimization Benchmark")
+    print("Ginsu Numba Optimization Benchmark")
     print("=" * 80)
     print()
 
@@ -581,7 +581,7 @@ def main() -> int:
     if not numba_available:
         logger.warning(
             "Numba is not installed. Install with: pip install numba "
-            "or: pip install sliceline[optimized]"
+            "or: pip install ginsu[optimized]"
         )
         logger.info("Running benchmarks without numba only...")
 

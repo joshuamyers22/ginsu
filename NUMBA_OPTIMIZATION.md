@@ -1,8 +1,9 @@
-# Numba Performance Optimization
+# Ginsu Numba Performance Optimization
 
 ## Status: Implemented
 
-This document describes the Numba JIT optimization implementation in Sliceline, providing **5-50x performance improvements** for scoring operations.
+This document describes the inherited Numba JIT optimization in Ginsu and the
+current benchmark evidence.
 
 ## Quick Start
 
@@ -13,19 +14,19 @@ Numba requires LLVM to be installed on your system:
 **macOS:**
 ```bash
 brew install llvm
-pip install sliceline[optimized]
+pip install ginsu[optimized]
 ```
 
 **Linux (Ubuntu/Debian):**
 ```bash
 sudo apt-get install llvm
-pip install sliceline[optimized]
+pip install ginsu[optimized]
 ```
 
 ### Verify Installation
 
 ```python
-from sliceline import is_numba_available
+from ginsu import is_numba_available
 
 if is_numba_available():
     print("Numba optimization enabled")
@@ -60,15 +61,16 @@ Based on comprehensive benchmarks (`benchmarks/benchmark_results.json`):
 
 The optimization is fully optional and backward-compatible:
 
-1. **`sliceline/_numba_ops.py`**: JIT-compiled operations
+1. **`ginsu/_numba_ops.py`**: JIT-compiled operations
    - `score_slices_numba()`: Main scoring function
    - `score_ub_single_numba()` / `score_ub_batch_numba()`: Upper-bound scoring
    - `compute_slice_ids_numba()`: ID computation for deduplication
 
-2. **`sliceline/slicefinder.py`**: Automatic detection and fallback
+2. **`ginsu/slicefinder.py`**: Automatic detection and fallback
    ```python
    try:
-       from sliceline._numba_ops import score_slices_numba
+       from ginsu._numba_ops import score_slices_numba
+
        NUMBA_AVAILABLE = True
    except (ImportError, RuntimeError):
        NUMBA_AVAILABLE = False
@@ -136,18 +138,19 @@ RuntimeError: cannot cache function 'score_slices_numba': no locator available
    ENV NUMBA_DISABLE_JIT=1
    ```
 
-3. **Do nothing**: Sliceline automatically catches the `RuntimeError` and falls back to pure NumPy.
+3. **Do nothing**: Ginsu automatically catches the `RuntimeError` and falls back to pure NumPy.
 
 ## Troubleshooting
 
 ### Numba Not Detected
 
 ```python
-from sliceline import is_numba_available
+from ginsu import is_numba_available
 
 if not is_numba_available():
     # Check if numba is installed
     import subprocess
+
     subprocess.run(["pip", "list", "|", "grep", "numba"])
 ```
 
@@ -175,14 +178,14 @@ sudo apt-get install build-essential llvm
 ### is_numba_available()
 
 ```python
-from sliceline import is_numba_available
+from ginsu import is_numba_available
 
 enabled = is_numba_available()
 ```
 
 **Returns:** `bool` - Whether Numba optimization is active
 
-**Note:** This function is automatically available when importing from `sliceline`.
+**Note:** This function is automatically available when importing from `ginsu`.
 
 ## Testing
 

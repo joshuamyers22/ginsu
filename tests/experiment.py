@@ -3,7 +3,6 @@ The experiment module implements the Experiment dataclass.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Union
 
 import numpy as np
 
@@ -60,9 +59,9 @@ class Experiment:
     input_dataset: np.ndarray
     input_errors: np.ndarray
     expected_top_k_slices: np.ndarray
-    expected_top_k_slices_statistics: List[Dict[str, float]]
+    expected_top_k_slices_statistics: list[dict[str, float]]
     alpha: float = 0.95
     k: int = 2
     max_l: int = 2
-    min_sup: Union[int, float] = 1
+    min_sup: int | float = 1
     verbose: bool = True

@@ -5,18 +5,31 @@ The slicefinder module implements the Slicefinder class.
 from __future__ import annotations
 
 import logging
+import math
 import warnings
+from collections.abc import Callable
+from time import perf_counter
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
+import polars as pl
 from scipy import sparse as sp
 from scipy.stats import rankdata
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.utils.validation import _check_feature_names, check_is_fitted
+from sklearn.utils.validation import check_is_fitted
 
-from sliceline.validation import check_array, check_X_e
+from ginsu._domain import Predicate, Slice
+from ginsu._frame import normalize_frame, schema_signature, validate_schema
+from ginsu._validation import normalize_errors, to_engine_array
+from ginsu.diagnostics import (
+    SearchLevelReport,
+    SearchLimitError,
+    SearchLimits,
+    SearchReport,
+    SearchStatus,
+)
 
 ArrayLike = npt.ArrayLike
 NDArray = npt.NDArray[Any]
@@ -24,19 +37,34 @@ NDArray = npt.NDArray[Any]
 logger = logging.getLogger(__name__)
 
 # Numba availability detection
+score_slices_numba: Any = None
+score_ub_batch_numba: Any = None
+compute_slice_ids_numba: Any = None
 try:
-    from sliceline._numba_ops import (
-        compute_slice_ids_numba,
-        score_slices_numba,
-        score_ub_batch_numba,
+    from ginsu._numba_ops import (
+        compute_slice_ids_numba as _compute_slice_ids_numba,
+    )
+    from ginsu._numba_ops import (
+        score_slices_numba as _score_slices_numba,
+    )
+    from ginsu._numba_ops import (
+        score_ub_batch_numba as _score_ub_batch_numba,
     )
 
+    compute_slice_ids_numba = _compute_slice_ids_numba
+    score_slices_numba = _score_slices_numba
+    score_ub_batch_numba = _score_ub_batch_numba
     NUMBA_AVAILABLE = True
 except (ImportError, RuntimeError):
     NUMBA_AVAILABLE = False
-    score_slices_numba = None
-    score_ub_batch_numba = None
-    compute_slice_ids_numba = None
+
+
+def _column_cardinality(series: pl.Series) -> int:
+    """Count values, including NumPy-origin Polars Object columns."""
+    try:
+        return int(series.n_unique())
+    except pl.exceptions.InvalidOperationError:
+        return int(np.unique(series.to_numpy()).size)
 
 
 def is_numba_available() -> bool:
@@ -54,7 +82,7 @@ def _warn_numba_not_available() -> None:
     """Issue a warning if numba is not available."""
     warnings.warn(
         "Numba not available. Install with: pip install numba\n"
-        "Or: pip install sliceline[optimized]\n"
+        "Or: pip install ginsu[optimized]\n"
         "Performance will be 5-50x slower without Numba optimization.",
         UserWarning,
         stacklevel=3,
@@ -106,6 +134,14 @@ class Slicefinder(BaseEstimator, TransformerMixin):
     verbose: bool, default=True
         Controls the verbosity.
 
+    limits: SearchLimits or None, default=None
+        Resource policy for cardinality, candidate generation, compatibility
+        matrices, elapsed search time, and tied output. ``None`` uses the
+        conservative :class:`ginsu.SearchLimits` defaults.
+
+    clock: callable, default=time.perf_counter
+        Injected monotonic clock used for elapsed-time limits and diagnostics.
+
     Attributes
     ----------
     top_slices: np.ndarray of shape (_n_features_out, number of columns of the input dataset)
@@ -124,6 +160,10 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         - slice_size: the number of elements in the slice
         - slice_average_error: the average error in the slice (sum_slice_error / slice_size)
 
+    search_report\\_ : SearchReport
+        Immutable execution evidence. Limit-terminated and failed searches
+        expose this report but do not leave the estimator in a fitted state.
+
     References
     ----------
     `SliceLine: Fast, Linear-Algebra-based Slice Finding for ML Model Debugging
@@ -138,16 +178,19 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         max_l: int = 4,
         min_sup: int | float = 10,
         verbose: bool = True,
+        limits: SearchLimits | None = None,
+        clock: Callable[[], float] = perf_counter,
     ) -> None:
         self.alpha = alpha
         self.k = k
         self.max_l = max_l
         self.min_sup = min_sup
         self.verbose = verbose
+        self.limits = limits
+        self.clock = clock
 
-        self._one_hot_encoder = self._top_slices_enc = None
-        self.top_slices_ = self.top_slices_statistics_ = None
-        self.average_error_ = None
+        self._one_hot_encoder: OneHotEncoder | None = None
+        self._top_slices_enc: sp.csr_matrix | None = None
         self._min_sup_actual = min_sup
 
         if self.verbose:
@@ -159,9 +202,9 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         if not NUMBA_AVAILABLE and verbose:
             warnings.warn(
                 "Numba JIT optimization not available. "
-                "Install with 'pip install sliceline[optimized]' "
+                "Install with 'pip install ginsu[optimized]' "
                 "for 5-50x performance improvements on scoring operations. "
-                "See https://github.com/DataDome/sliceline for details.",
+                "See the Ginsu performance documentation for details.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -182,14 +225,82 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         ):
             raise ValueError(f"Invalid 'min_sup' parameter: {self.min_sup}")
 
+        if self.limits is not None and not isinstance(
+            self.limits, SearchLimits
+        ):
+            raise TypeError("limits must be a SearchLimits instance or None.")
+        if not callable(self.clock):
+            raise TypeError("clock must be callable.")
+
+    def _clear_fitted_state(self) -> None:
+        """Remove prior results before starting a new fit."""
+        for name in (
+            "feature_names_in_",
+            "_feature_schema",
+            "input_kind_",
+            "average_error_",
+            "top_slices_",
+            "top_slices_statistics_",
+            "slices_",
+            "slice_statistics_",
+            "predicates_",
+            "_slice_objects",
+            "search_report_",
+        ):
+            if hasattr(self, name):
+                delattr(self, name)
+        self._one_hot_encoder = None
+        self._top_slices_enc = None
+
+    def _raise_limit(
+        self,
+        code: str,
+        *,
+        observed: int | float,
+        limit: int | float,
+        stage: str,
+    ) -> None:
+        raise SearchLimitError(
+            code, observed=observed, limit=limit, stage=stage
+        )
+
+    def _check_elapsed(self, stage: str) -> None:
+        limit = self._active_search_limits.max_search_seconds
+        if limit is None:
+            return
+        elapsed = self.clock() - self._search_started_at
+        if elapsed > limit:
+            self._raise_limit(
+                "GINSU_MAX_SEARCH_SECONDS",
+                observed=elapsed,
+                limit=limit,
+                stage=stage,
+            )
+
+    def _check_tie_limit(self, count: int, stage: str) -> None:
+        limit = self._active_search_limits.max_tied_slices
+        if limit is not None and count > limit:
+            self._raise_limit(
+                "GINSU_MAX_TIED_SLICES",
+                observed=count,
+                limit=limit,
+                stage=stage,
+            )
+
     def _check_top_slices(self) -> None:
         """Check if slices have been found."""
         # Check if fit has been called
-        check_is_fitted(self)
+        check_is_fitted(self, ("top_slices_", "_feature_schema"))
 
         # Check if a slice has been found
         if self.top_slices_.size == 0:
-            raise ValueError("No transform: Sliceline did not find any slice.")
+            raise ValueError("No transform: Ginsu did not find any slice.")
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """Keep diagnostic-only failed fits from satisfying fitted checks."""
+        return hasattr(self, "top_slices_") and hasattr(
+            self, "_feature_schema"
+        )
 
     def fit(self, X: ArrayLike, errors: ArrayLike) -> Slicefinder:
         """Search for slice(s) on `X` based on `errors`.
@@ -208,24 +319,112 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         self: object
             Returns the instance itself.
         """
+        self._clear_fitted_state()
         self._check_params()
+        started_at = self.clock()
+        active_limits = self.limits or SearchLimits()
 
-        # Compute actual min_sup value (convert fraction to count if needed)
-        if 0 < self.min_sup < 1:
-            self._min_sup_actual = int(self.min_sup * len(X))
-        else:
-            self._min_sup_actual = self.min_sup
+        # Validate and normalize inputs before deriving any fitted state.
+        normalized = normalize_frame(X)
+        signature = schema_signature(normalized.frame)
+        cardinalities = tuple(
+            (name, _column_cardinality(normalized.frame.get_column(name)))
+            for name in normalized.frame.columns
+        )
+        copy_boundaries = tuple(
+            (
+                [f"{normalized.kind}->polars"]
+                if normalized.kind != "polars"
+                else []
+            )
+            + ["polars->numpy", "numpy->scipy-csr"]
+        )
 
-        # Check that X and e have correct shape
-        X_array, errors = check_X_e(X, errors, y_numeric=True)
+        self._active_search_limits = active_limits
+        self._search_started_at = started_at
+        self._search_levels: list[SearchLevelReport] = []
+        self._encoded_feature_count: int | None = None
+        self._numba_used = False
 
-        _check_feature_names(self, X, reset=True)
+        def build_report(
+            status: SearchStatus,
+            *,
+            reason: str | None = None,
+            warning_codes: tuple[str, ...] = (),
+        ) -> SearchReport:
+            return SearchReport(
+                status=status,
+                backend="numba" if self._numba_used else "numpy",
+                numba_used=self._numba_used,
+                input_kind=normalized.kind,
+                input_schema=signature,
+                row_count=normalized.frame.height,
+                feature_count=normalized.frame.width,
+                feature_cardinalities=cardinalities,
+                encoded_feature_count=self._encoded_feature_count,
+                copy_boundaries=copy_boundaries,
+                levels=tuple(self._search_levels),
+                elapsed_seconds=max(0.0, self.clock() - started_at),
+                limits=active_limits,
+                warning_codes=warning_codes,
+                termination_reason=reason,
+            )
 
-        self._search_slices(X_array, errors)
+        try:
+            cardinality_limit = active_limits.max_feature_cardinality
+            if cardinality_limit is not None:
+                for name, cardinality in cardinalities:
+                    if cardinality > cardinality_limit:
+                        self._raise_limit(
+                            "GINSU_MAX_FEATURE_CARDINALITY",
+                            observed=cardinality,
+                            limit=cardinality_limit,
+                            stage=f"feature {name!r}",
+                        )
+
+            X_array = to_engine_array(normalized.frame)
+            normalized_errors = normalize_errors(
+                errors, expected_length=normalized.frame.height
+            )
+
+            # Compute actual min_sup value (convert fraction to count if needed)
+            if 0 < self.min_sup < 1:
+                self._min_sup_actual = max(
+                    1, math.ceil(self.min_sup * X_array.shape[0])
+                )
+            else:
+                self._min_sup_actual = self.min_sup
+
+            self._search_slices(
+                X_array, normalized_errors, started_at=started_at
+            )
+            self._build_result_frames(normalized.frame)
+        except SearchLimitError as error:
+            self._clear_fitted_state()
+            self.search_report_ = build_report(
+                "limit_reached",
+                reason=str(error),
+                warning_codes=(error.code,),
+            )
+            raise
+        except Exception as error:
+            self._clear_fitted_state()
+            self.search_report_ = build_report("failed", reason=str(error))
+            raise
+
+        self.feature_names_in_ = np.asarray(
+            normalized.frame.columns, dtype=object
+        )
+        self._feature_schema = signature
+        self.input_kind_ = normalized.kind
+        status: SearchStatus = (
+            "no_valid_slices" if self.slices_.height == 0 else "complete"
+        )
+        self.search_report_ = build_report(status)
 
         return self
 
-    def transform(self, X: ArrayLike) -> NDArray:
+    def transform(self, X: ArrayLike) -> NDArray | Any:
         """Generate slices masks for `X`.
 
         Parameters
@@ -236,19 +435,31 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
         Returns
         -------
-        slices_masks: np.ndarray of shape (n_samples, _n_features_out)
+        slices_masks: np.ndarray or polars.DataFrame
+            NumPy-like input produces an ndarray. Polars, Arrow, and dataframe
+            interchange inputs produce a Polars DataFrame.
+
+            The result has shape (n_samples, _n_features_out), and
             `slices_masks[i, j] == 1`: the `i`-th sample of `X` is in the `j`-th `top_slices_`.
         """
         self._check_top_slices()
 
-        # Input validation
-        X = check_array(X)
+        normalized = normalize_frame(X)
+        validate_schema(normalized.frame, expected=self._feature_schema)
+        X_array = to_engine_array(normalized.frame)
 
-        slices_masks = self._get_slices_masks(X)
+        slices_masks = self._get_slices_masks(X_array).T.astype(bool)
 
-        return slices_masks.T
+        if normalized.kind == "numpy":
+            return slices_masks
 
-    def get_slice(self, X: ArrayLike, slice_index: int) -> NDArray:
+        return pl.DataFrame(
+            slices_masks,
+            schema=self.get_feature_names_out().tolist(),
+            orient="row",
+        )
+
+    def get_slice(self, X: ArrayLike, slice_index: int) -> NDArray | Any:
         """Filter `X` samples according to the `slice_index`-th slice.
 
         Parameters
@@ -262,17 +473,23 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
         Returns
         -------
-        X_slice: np.ndarray of shape (n_samples in the `slice_index`-th slice, n_features)
-            Filter `X` samples that are in the `slice_index`-th slice.
+        X_slice: np.ndarray or polars.DataFrame
+            Filtered samples. NumPy-like input produces an ndarray. Polars,
+            Arrow, and dataframe interchange inputs produce a Polars DataFrame.
         """
         self._check_top_slices()
 
-        # Input validation
-        X = check_array(X, force_all_finite=False)
+        normalized = normalize_frame(X)
+        validate_schema(normalized.frame, expected=self._feature_schema)
+        X_array = to_engine_array(normalized.frame)
 
-        slices_masks = self._get_slices_masks(X)
+        slices_masks = self._get_slices_masks(X_array)
+        row_mask = slices_masks[slice_index].astype(bool)
 
-        return X[np.where(slices_masks[slice_index])[0], :]
+        if normalized.kind == "numpy":
+            return X_array[row_mask, :]
+
+        return normalized.frame.filter(row_mask)
 
     def get_feature_names_out(self) -> NDArray:
         """Get output feature names for transformation.
@@ -289,8 +506,73 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
         return np.array(feature_names, dtype=object)
 
+    def membership_frame(
+        self, X: ArrayLike, *, row_id: str | pl.Series | None = None
+    ) -> pl.DataFrame:
+        """Return positional row identity and stable Boolean slice columns.
+
+        Parameters
+        ----------
+        X:
+            Schema-compatible observations.
+        row_id:
+            ``None`` generates a positional UInt64 row number. A string uses
+            that input column as row identity. A Polars Series supplies an
+            explicit identifier with one value per observation.
+
+        Returns
+        -------
+        polars.DataFrame
+            ``__ginsu_row`` followed by one Boolean column per stable slice ID.
+        """
+        check_is_fitted(self, ("slices_", "_feature_schema"))
+        normalized = normalize_frame(X)
+        validate_schema(normalized.frame, expected=self._feature_schema)
+        X_array = to_engine_array(normalized.frame)
+
+        if row_id is None:
+            row_values = pl.Series(
+                "__ginsu_row",
+                range(normalized.frame.height),
+                dtype=pl.UInt64,
+            )
+        elif isinstance(row_id, str):
+            if row_id not in normalized.frame.columns:
+                raise ValueError(f"Unknown row_id column {row_id!r}.")
+            row_values = normalized.frame.get_column(row_id).alias(
+                "__ginsu_row"
+            )
+        elif isinstance(row_id, pl.Series):
+            if row_id.len() != normalized.frame.height:
+                raise ValueError(
+                    "row_id length must match the number of observations."
+                )
+            row_values = row_id.alias("__ginsu_row")
+        else:
+            raise TypeError(
+                "row_id must be None, a column name, or a Polars Series."
+            )
+
+        if row_values.n_unique() != normalized.frame.height:
+            raise ValueError("row_id values must be unique.")
+
+        result = pl.DataFrame({"__ginsu_row": row_values})
+        if self.slices_.height == 0:
+            return result
+
+        masks = self._get_slices_masks(X_array).T.astype(bool)
+        identifiers = self.slices_.get_column("__ginsu_id").to_list()
+        return result.with_columns(
+            [
+                pl.Series(identifier, masks[:, index], dtype=pl.Boolean)
+                for index, identifier in enumerate(identifiers)
+            ]
+        )
+
     def _get_slices_masks(self, X: NDArray) -> NDArray:
         """Private utilities function generating slices masks for `X`."""
+        if self._one_hot_encoder is None or self._top_slices_enc is None:
+            raise RuntimeError("Fitted encoder state is unavailable.")
         X_encoded = self._one_hot_encoder.transform(X)
 
         # Shape X_encoded: (X.shape[0], total number of modalities in _one_hot_encoder.categories_)
@@ -303,6 +585,166 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         ).A.astype(int)
 
         return slices_masks
+
+    def _build_result_frames(self, input_frame: pl.DataFrame) -> None:
+        """Build canonical Polars result tables from characterized engine output."""
+        slices = []
+        for row in self.top_slices_:
+            predicates = tuple(
+                Predicate(feature, value)
+                for feature, value in zip(
+                    input_frame.columns, row, strict=True
+                )
+                if value is not None
+            )
+            slices.append(Slice(predicates))
+
+        identifiers = [item.id for item in slices]
+        ranks = list(range(1, len(slices) + 1))
+        result_columns: dict[str, pl.Series] = {
+            "__ginsu_id": pl.Series(
+                "__ginsu_id", identifiers, dtype=pl.String
+            ),
+            "__ginsu_rank": pl.Series("__ginsu_rank", ranks, dtype=pl.UInt32),
+            "__ginsu_rule": pl.Series(
+                "__ginsu_rule",
+                [item.rule for item in slices],
+                dtype=pl.String,
+            ),
+        }
+        for column_index, (name, dtype) in enumerate(
+            input_frame.schema.items()
+        ):
+            values = [row[column_index] for row in self.top_slices_]
+            result_columns[name] = pl.Series(
+                name,
+                values,
+                dtype=dtype if dtype != pl.Object else pl.Object,
+                strict=False,
+            )
+        self.slices_ = pl.DataFrame(result_columns)
+
+        statistics = self.top_slices_statistics_
+        support = [int(item["slice_size"]) for item in statistics]
+        error_sum = [item["sum_slice_error"] for item in statistics]
+        error_mean = [item["slice_average_error"] for item in statistics]
+        self.slice_statistics_ = pl.DataFrame(
+            {
+                "__ginsu_id": pl.Series(identifiers, dtype=pl.String),
+                "rank": pl.Series(ranks, dtype=pl.UInt32),
+                "slice_score": pl.Series(
+                    [item["slice_score"] for item in statistics],
+                    dtype=pl.Float64,
+                ),
+                "support_count": pl.Series(support, dtype=pl.UInt64),
+                "support_fraction": pl.Series(
+                    [value / input_frame.height for value in support],
+                    dtype=pl.Float64,
+                ),
+                "error_sum": pl.Series(error_sum, dtype=pl.Float64),
+                "error_max": pl.Series(
+                    [item["max_slice_error"] for item in statistics],
+                    dtype=pl.Float64,
+                ),
+                "error_mean": pl.Series(error_mean, dtype=pl.Float64),
+                "baseline_error_mean": pl.Series(
+                    [self.average_error_] * len(slices), dtype=pl.Float64
+                ),
+                "error_lift": pl.Series(
+                    [value / self.average_error_ for value in error_mean],
+                    dtype=pl.Float64,
+                ),
+                "excess_error": pl.Series(
+                    [
+                        total - count * self.average_error_
+                        for total, count in zip(
+                            error_sum, support, strict=True
+                        )
+                    ],
+                    dtype=pl.Float64,
+                ),
+                "predicate_count": pl.Series(
+                    [len(item.predicates) for item in slices], dtype=pl.UInt32
+                ),
+            }
+        )
+
+        predicate_rows = []
+        dtype_lookup = {
+            name: str(dtype) for name, dtype in input_frame.schema.items()
+        }
+        for rank, item in enumerate(slices, start=1):
+            for position, predicate in enumerate(item.predicates):
+                predicate_rows.append(
+                    {
+                        "__ginsu_id": item.id,
+                        "rank": rank,
+                        "predicate_position": position,
+                        "feature": predicate.feature,
+                        "operator": predicate.operator,
+                        "value_json": predicate.value_json,
+                        "display_value": predicate.display_value,
+                        "source_dtype": dtype_lookup[predicate.feature],
+                    }
+                )
+        self.predicates_ = pl.DataFrame(
+            predicate_rows,
+            schema={
+                "__ginsu_id": pl.String,
+                "rank": pl.UInt32,
+                "predicate_position": pl.UInt32,
+                "feature": pl.String,
+                "operator": pl.String,
+                "value_json": pl.String,
+                "display_value": pl.String,
+                "source_dtype": pl.String,
+            },
+        )
+        self._slice_objects = tuple(slices)
+
+    def equivalence_groups(
+        self,
+        X: ArrayLike,
+        *,
+        max_slices: int = 100,
+        max_membership_cells: int = 10_000_000,
+    ) -> pl.DataFrame:
+        """Group returned rules with exactly equal membership on ``X``."""
+        from ginsu._plot_data import equivalence_groups
+
+        return equivalence_groups(
+            self,
+            X,
+            max_slices=max_slices,
+            max_membership_cells=max_membership_cells,
+        )
+
+    def overlap_frame(
+        self,
+        X: ArrayLike,
+        *,
+        metric: str = "jaccard",
+        max_slices: int = 100,
+        max_cells: int = 10_000,
+        max_membership_cells: int = 10_000_000,
+    ) -> pl.DataFrame:
+        """Return a bounded pairwise overlap table for discovered rules."""
+        from ginsu._plot_data import overlap_data
+
+        return overlap_data(
+            self,
+            X,
+            metric=metric,
+            max_slices=max_slices,
+            max_cells=max_cells,
+            max_membership_cells=max_membership_cells,
+        )
+
+    def lattice_edges(self, *, max_nodes: int = 100) -> pl.DataFrame:
+        """Return exact one-predicate refinement edges among returned rules."""
+        from ginsu._plot_data import lattice_edges_data
+
+        return lattice_edges_data(self, max_nodes=max_nodes)
 
     @property
     def _n_features_out(self) -> int:
@@ -401,6 +843,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         Uses Numba JIT compilation when available for 5-10x speedup.
         """
         if NUMBA_AVAILABLE and score_ub_batch_numba is not None:
+            self._numba_used = True
             return score_ub_batch_numba(
                 slice_sizes_ub.astype(np.float64),
                 slice_errors_ub.astype(np.float64),
@@ -464,6 +907,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         Uses Numba JIT compilation when available for 5-10x speedup.
         """
         if NUMBA_AVAILABLE and score_slices_numba is not None:
+            self._numba_used = True
             # Ensure inputs are float64 for numba
             sizes = np.asarray(slice_sizes, dtype=np.float64)
             errors = np.asarray(slice_errors, dtype=np.float64)
@@ -542,8 +986,10 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
         n_col_dropped = n_col_x_encoded - sum(valid_slices_mask)
         logger.debug(
-            "Dropping %i/%i features below min_sup = %i."
-            % (n_col_dropped, n_col_x_encoded, self._min_sup_actual)
+            "Dropping %i/%i features below min_sup = %i.",
+            n_col_dropped,
+            n_col_x_encoded,
+            self._min_sup_actual,
         )
 
         return slices, statistics
@@ -561,7 +1007,10 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _join_compatible_slices(
-        slices: sp.csr_matrix, level: int
+        slices: sp.csr_matrix,
+        level: int,
+        *,
+        max_pair_matrix_bytes: int | None = None,
     ) -> sp.csr_matrix:
         """Join compatible slices keeping sparse format when beneficial.
 
@@ -575,6 +1024,24 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         n_slices = slices.shape[0]
         if n_slices == 0:
             return sp.csr_matrix((0, 0), dtype=np.bool_)
+
+        # ``join_counts.toarray()``, the comparison, and ``np.triu`` coexist
+        # briefly. Estimate all three dense buffers before multiplication.
+        estimated_bytes = (
+            n_slices
+            * n_slices
+            * (np.dtype(np.int64).itemsize + 2 * np.dtype(np.bool_).itemsize)
+        )
+        if (
+            max_pair_matrix_bytes is not None
+            and estimated_bytes > max_pair_matrix_bytes
+        ):
+            raise SearchLimitError(
+                "GINSU_MAX_PAIR_MATRIX_BYTES",
+                observed=estimated_bytes,
+                limit=max_pair_matrix_bytes,
+                stage=f"level {level} compatibility matrix",
+            )
 
         slices_int = slices.astype(int)
         join_counts = slices_int @ slices_int.T
@@ -633,7 +1100,9 @@ class Slicefinder(BaseEstimator, TransformerMixin):
     ) -> tuple[sp.csr_matrix, NDArray, NDArray, NDArray]:
         """Prune invalid self joins (>1 bit per feature)."""
         valid_slices_mask = np.full(pair_candidates.shape[0], True)
-        for start, end in zip(feature_offset_start, feature_offset_end):
+        for start, end in zip(
+            feature_offset_start, feature_offset_end, strict=False
+        ):
             valid_slices_mask = (
                 valid_slices_mask
                 * (pair_candidates[:, start:end].sum(axis=1) <= 1).A[:, 0]
@@ -645,8 +1114,8 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             max_slice_errors[valid_slices_mask],
         )
 
-    @staticmethod
     def _prepare_deduplication_and_pruning(
+        self,
         feature_offset_start: NDArray,
         feature_offset_end: NDArray,
         feature_domains: NDArray,
@@ -657,6 +1126,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         Uses Numba JIT compilation when available for 10-50x speedup.
         """
         if NUMBA_AVAILABLE and compute_slice_ids_numba is not None:
+            self._numba_used = True
             return compute_slice_ids_numba(
                 pair_candidates.data.astype(np.float64),
                 pair_candidates.indices.astype(np.int64),
@@ -670,7 +1140,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         ids = np.zeros(pair_candidates.shape[0])
         dom = feature_domains + 1
         for j, (start, end) in enumerate(
-            zip(feature_offset_start, feature_offset_end)
+            zip(feature_offset_start, feature_offset_end, strict=False)
         ):
             sub_pair_candidates = pair_candidates[:, start:end]
             # sub_p should not contain multiple True on the same line
@@ -695,7 +1165,46 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         feature_offset_end: NDArray,
     ) -> sp.csr_matrix:
         """Compute and prune plausible slices candidates."""
-        compatible_slices = self._join_compatible_slices(slices, level)
+        if not hasattr(self, "_active_search_limits"):
+            self._active_search_limits = self.limits or SearchLimits()
+        if not hasattr(self, "_search_started_at"):
+            self._search_started_at = self.clock()
+        if not hasattr(self, "_generated_candidate_total"):
+            self._generated_candidate_total = 0
+
+        self._check_elapsed(f"level {level} join")
+        self._last_potential_pairs = (
+            slices.shape[0] * (slices.shape[0] - 1) // 2
+        )
+        compatible_slices = self._join_compatible_slices(
+            slices,
+            level,
+            max_pair_matrix_bytes=(
+                self._active_search_limits.max_pair_matrix_bytes
+            ),
+        )
+        compatible_count = int(compatible_slices.nnz)
+        self._last_compatible_pairs = compatible_count
+        self._last_candidates_after_pruning = 0
+
+        level_limit = self._active_search_limits.max_candidates_per_level
+        if level_limit is not None and compatible_count > level_limit:
+            self._raise_limit(
+                "GINSU_MAX_CANDIDATES_PER_LEVEL",
+                observed=compatible_count,
+                limit=level_limit,
+                stage=f"level {level} compatible pairs",
+            )
+        total = self._generated_candidate_total + compatible_count
+        total_limit = self._active_search_limits.max_total_candidates
+        if total_limit is not None and total > total_limit:
+            self._raise_limit(
+                "GINSU_MAX_TOTAL_CANDIDATES",
+                observed=total,
+                limit=total_limit,
+                stage=f"level {level} cumulative compatible pairs",
+            )
+        self._generated_candidate_total = total
 
         if compatible_slices.nnz == 0:
             return sp.csr_matrix(np.empty((0, slices.shape[1])))
@@ -763,25 +1272,49 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
         pruning_scores = (slice_scores > min_slice_scores) & (slice_scores > 0)
 
-        return pair_candidates[pruning_scores & pruning_sizes]
+        result = pair_candidates[pruning_scores & pruning_sizes]
+        self._last_candidates_after_pruning = result.shape[0]
+        return result
 
     def _search_slices(
         self,
         input_x: NDArray,
         errors: NDArray,
+        *,
+        started_at: float | None = None,
     ) -> None:
         """Main function of the SliceLine algorithm."""
+        self._active_search_limits = self.limits or SearchLimits()
+        self._search_started_at = (
+            self.clock() if started_at is None else started_at
+        )
+        self._search_levels = []
+        self._generated_candidate_total = 0
+        self._encoded_feature_count = None
+        self._numba_used = False
+
         # prepare offset vectors and one-hot encoded input_x
-        self._one_hot_encoder = OneHotEncoder(handle_unknown="ignore")
-        x_encoded = self._one_hot_encoder.fit_transform(input_x)
+        encoder = OneHotEncoder(handle_unknown="ignore")
+        self._one_hot_encoder = encoder
+        x_encoded = encoder.fit_transform(input_x)
         feature_domains: NDArray = np.array(
-            [len(sub_array) for sub_array in self._one_hot_encoder.categories_]
+            [len(sub_array) for sub_array in encoder.categories_]
         )
         feature_offset_end = np.cumsum(feature_domains)
         feature_offset_start = feature_offset_end - feature_domains
 
         # initialize statistics and basic slices
         n_col_x_encoded = x_encoded.shape[1]
+        self._encoded_feature_count = n_col_x_encoded
+        encoded_limit = self._active_search_limits.max_encoded_features
+        if encoded_limit is not None and n_col_x_encoded > encoded_limit:
+            self._raise_limit(
+                "GINSU_MAX_ENCODED_FEATURES",
+                observed=n_col_x_encoded,
+                limit=encoded_limit,
+                stage="one-hot encoding",
+            )
+        self._check_elapsed("one-hot encoding")
         self.average_error_ = float(np.mean(errors))
         slices, statistics = self._create_and_score_basic_slices(
             x_encoded,
@@ -796,13 +1329,33 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             sp.csr_matrix((0, n_col_x_encoded)),
             np.zeros((0, 4)),
         )
+        self._check_tie_limit(top_k_slices.shape[0], "level 1 top-k")
+        basic_valid = int(
+            np.sum(
+                (statistics[:, 3] >= self._min_sup_actual)
+                & (statistics[:, 0] > 0)
+            )
+        )
+        self._search_levels.append(
+            SearchLevelReport(
+                level=1,
+                source_slices=n_col_x_encoded,
+                potential_pairs=0,
+                compatible_pairs=0,
+                candidates_after_pruning=slices.shape[0],
+                evaluated_candidates=n_col_x_encoded,
+                valid_candidates=basic_valid,
+            )
+        )
 
         max_slice_scores, min_slice_scores = self._analyse_top_k(
             top_k_statistics
         )
         logger.debug(
-            "Initial top-K: count=%i, max=%f, min=%f"
-            % (top_k_slices.shape[0], max_slice_scores, min_slice_scores)
+            "Initial top-K: count=%i, max=%f, min=%f",
+            top_k_slices.shape[0],
+            max_slice_scores,
+            min_slice_scores,
         )
 
         # lattice enumeration w/ size/error pruning, one iteration per level
@@ -829,19 +1382,25 @@ class Slicefinder(BaseEstimator, TransformerMixin):
                 feature_offset_start,
                 feature_offset_end,
             )
+            candidate_count = slices.shape[0]
 
-            logger.debug("Level %i:" % level)
+            logger.debug("Level %i:", level)
             logger.debug(
-                " -- generated paired slice candidates: %i -> %i"
-                % (nr_s, slices.shape[0])
+                " -- generated paired slice candidates: %i -> %i",
+                nr_s,
+                slices.shape[0],
             )
 
             # extract and evaluate candidate slices
             statistics = self._eval_slice(x_encoded, errors, slices, level)
+            self._check_elapsed(f"level {level} evaluation")
 
             # maintain top-k after evaluation
             top_k_slices, top_k_statistics = self._maintain_top_k(
                 slices, statistics, top_k_slices, top_k_statistics
+            )
+            self._check_tie_limit(
+                top_k_slices.shape[0], f"level {level} top-k"
             )
 
             max_slice_scores, min_slice_scores = self._analyse_top_k(
@@ -851,21 +1410,34 @@ class Slicefinder(BaseEstimator, TransformerMixin):
                 (statistics[:, 3] >= self._min_sup_actual)
                 & (statistics[:, 1] > 0)
             )
-            logger.debug(
-                " -- valid slices after eval: %s/%i" % (valid, slices.shape[0])
+            self._search_levels.append(
+                SearchLevelReport(
+                    level=level,
+                    source_slices=nr_s,
+                    potential_pairs=self._last_potential_pairs,
+                    compatible_pairs=self._last_compatible_pairs,
+                    candidates_after_pruning=(
+                        self._last_candidates_after_pruning
+                    ),
+                    evaluated_candidates=candidate_count,
+                    valid_candidates=int(valid),
+                )
             )
             logger.debug(
-                " -- top-K: count=%i, max=%f, min=%f"
-                % (top_k_slices.shape[0], max_slice_scores, min_slice_scores)
+                " -- valid slices after eval: %s/%i", valid, slices.shape[0]
+            )
+            logger.debug(
+                " -- top-K: count=%i, max=%f, min=%f",
+                top_k_slices.shape[0],
+                max_slice_scores,
+                min_slice_scores,
             )
 
         self._top_slices_enc = top_k_slices.copy()
         if top_k_slices.shape[0] == 0:
             self.top_slices_ = np.empty((0, input_x.shape[1]))
         else:
-            self.top_slices_ = self._one_hot_encoder.inverse_transform(
-                top_k_slices
-            )
+            self.top_slices_ = encoder.inverse_transform(top_k_slices)
 
         # compute slices' average errors
         top_k_statistics = np.column_stack(
@@ -886,9 +1458,11 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         self.top_slices_statistics_ = [
             {
                 stat_name: float(stat_value)
-                for stat_value, stat_name in zip(statistic, statistics_names)
+                for stat_value, stat_name in zip(
+                    statistic, statistics_names, strict=False
+                )
             }
             for statistic in top_k_statistics
         ]
 
-        logger.debug("Terminated at level %i." % level)
+        logger.debug("Terminated at level %i.", level)

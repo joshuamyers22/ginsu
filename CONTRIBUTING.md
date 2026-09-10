@@ -3,14 +3,17 @@
 ## What to work on?
 
 You're welcome to propose and contribute new ideas.
-We encourage you to [open a discussion](https://github.com/DataDome/sliceline/discussions/new) so that we can align on the work to be done.
+Open a discussion in the Ginsu repository before starting a potentially
+out-of-scope or compatibility-sensitive change:
+https://github.com/joshuamyers22/ginsu/discussions.
 It's generally a good idea to have a quick discussion before opening a pull request that is potentially out-of-scope.
 
 ## Fork/clone/pull
 
-The typical workflow for contributing to `sliceline` is:
+The typical workflow for contributing to `ginsu` is:
 
-1. Fork the `main` branch from the [GitHub repository](https://github.com/DataDome/sliceline/).
+1. Fork the Ginsu repository's `main` branch:
+   https://github.com/joshuamyers22/ginsu.
 2. Clone your fork locally.
 3. Commit changes.
 4. Push the changes to your fork.
@@ -18,7 +21,7 @@ The typical workflow for contributing to `sliceline` is:
 
 ## Local setup
 
-We encourage you to use a virtual environment. You'll want to activate it every time you want to work on `sliceline`.
+We encourage you to use a virtual environment. You'll want to activate it every time you work on `ginsu`.
 
 Install dependencies via uv:
 
@@ -71,8 +74,9 @@ $ make doc
 
 ## Adding a release note
 
-All classes and function are automatically picked up and added to the documentation.
-The only thing you have to do is to add an entry to the relevant file in the [`docs/releases` directory](docs/releases).
+Add user-visible changes to the `Unreleased` section of
+[`CHANGELOG.md`](CHANGELOG.md). New public classes and functions must also be
+added to the appropriate API or task-oriented documentation page.
 
 ## Testing
 

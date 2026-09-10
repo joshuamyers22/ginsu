@@ -1,6 +1,6 @@
-"""Performance regression tests for Sliceline using pytest-benchmark.
+"""Performance regression tests for Ginsu using pytest-benchmark.
 
-This module tests for performance regressions in the Sliceline codebase.
+This module tests for performance regressions in the Ginsu codebase.
 It differs from benchmarks/benchmarks.py in purpose:
 
 - tests/test_performance.py: Automated regression testing integrated with CI/CD.
@@ -18,7 +18,9 @@ import numpy as np
 import pytest
 from scipy import sparse as sp
 
-from sliceline import Slicefinder
+from ginsu import SearchLimitError, SearchLimits, Slicefinder
+
+pytestmark = pytest.mark.performance
 
 
 def _create_correlated_errors(X: np.ndarray, seed: int = 42) -> np.ndarray:
@@ -87,18 +89,41 @@ class TestSlicefinderPerformance:
         assert result.top_slices_ is not None
 
     def test_fit_medium(self, benchmark, medium_dataset):
-        """Benchmark fit() on medium dataset (10K samples)."""
+        """Benchmark bounded level-2 fit on a medium dataset (10K samples)."""
         X, errors = medium_dataset
-        sf = Slicefinder(k=5, max_l=3, min_sup=100, verbose=False)
+        sf = Slicefinder(k=5, max_l=2, min_sup=100, verbose=False)
         result = benchmark(sf.fit, X, errors)
         assert result.top_slices_ is not None
 
     def test_fit_large(self, benchmark, large_dataset):
-        """Benchmark fit() on large dataset (50K samples)."""
+        """Benchmark bounded level-2 fit on a large dataset (50K samples)."""
         X, errors = large_dataset
-        sf = Slicefinder(k=5, max_l=3, min_sup=500, verbose=False)
+        sf = Slicefinder(k=5, max_l=2, min_sup=500, verbose=False)
         result = benchmark(sf.fit, X, errors)
         assert result.top_slices_ is not None
+
+    def test_pair_memory_limit_rejection(self, benchmark, medium_dataset):
+        """Benchmark rejection before an unsafe level-3 dense allocation."""
+        X, errors = medium_dataset
+
+        def run_limited_fit():
+            finder = Slicefinder(
+                k=5,
+                max_l=3,
+                min_sup=100,
+                limits=SearchLimits(max_pair_matrix_bytes=256 * 1024 * 1024),
+                verbose=False,
+            )
+            try:
+                finder.fit(X, errors)
+            except SearchLimitError as error:
+                return error
+            raise AssertionError(
+                "Expected the compatibility limit to be reached."
+            )
+
+        result = benchmark(run_limited_fit)
+        assert result.code == "GINSU_MAX_PAIR_MATRIX_BYTES"
 
     def test_transform_small(self, benchmark, small_dataset):
         """Benchmark transform() on small dataset."""
@@ -113,7 +138,7 @@ class TestSlicefinderPerformance:
     def test_transform_medium(self, benchmark, medium_dataset):
         """Benchmark transform() on medium dataset."""
         X, errors = medium_dataset
-        sf = Slicefinder(k=5, max_l=3, min_sup=100, alpha=0.9, verbose=False)
+        sf = Slicefinder(k=5, max_l=2, min_sup=100, alpha=0.9, verbose=False)
         sf.fit(X, errors)
         if len(sf.top_slices_) == 0:
             pytest.skip("No slices found for transform benchmark")
@@ -128,7 +153,7 @@ class TestInternalMethodsPerformance:
     def fitted_slicefinder(self, medium_dataset):
         """Pre-fitted Slicefinder for internal method testing."""
         X, errors = medium_dataset
-        sf = Slicefinder(k=5, max_l=3, min_sup=100, verbose=False)
+        sf = Slicefinder(k=5, max_l=2, min_sup=100, verbose=False)
         sf.fit(X, errors)
         return sf
 
@@ -228,7 +253,7 @@ class TestScalingBehavior:
         X = np.random.randint(1, 5, size=(n_samples, n_features))
         errors = np.random.rand(n_samples)
 
-        sf = Slicefinder(k=3, max_l=3, min_sup=50, verbose=False)
+        sf = Slicefinder(k=3, max_l=2, min_sup=50, verbose=False)
         result = benchmark(sf.fit, X, errors)
         assert result.top_slices_ is not None
 
@@ -237,7 +262,7 @@ class TestScalingBehavior:
         """Test how fit() scales with maximum lattice level."""
         np.random.seed(42)
         n_samples = 5000
-        X = np.random.randint(1, 5, size=(n_samples, 10))
+        X = np.random.randint(1, 5, size=(n_samples, 5))
         errors = np.random.rand(n_samples)
 
         sf = Slicefinder(k=3, max_l=max_l, min_sup=50, verbose=False)
@@ -330,7 +355,7 @@ class TestNumbaConsistency:
         sf_numba.fit(X, errors)
 
         # Fit without Numba (force NumPy fallback)
-        with patch("sliceline.slicefinder.NUMBA_AVAILABLE", False):
+        with patch("ginsu.slicefinder.NUMBA_AVAILABLE", False):
             sf_numpy = Slicefinder(k=5, max_l=3, min_sup=10, verbose=False)
             sf_numpy.fit(X, errors)
 
@@ -341,10 +366,17 @@ class TestNumbaConsistency:
 
         # Verify identical statistics for each slice
         for i, (stat_numba, stat_numpy) in enumerate(
-            zip(sf_numba.top_slices_statistics_, sf_numpy.top_slices_statistics_)
+            zip(
+                sf_numba.top_slices_statistics_,
+                sf_numpy.top_slices_statistics_,
+                strict=False,
+            )
         ):
             # Check slice scores (must be identical within floating point precision)
-            assert abs(stat_numba["slice_score"] - stat_numpy["slice_score"]) < 1e-10, (
+            assert (
+                abs(stat_numba["slice_score"] - stat_numpy["slice_score"])
+                < 1e-10
+            ), (
                 f"Slice {i}: score mismatch "
                 f"(Numba={stat_numba['slice_score']}, "
                 f"NumPy={stat_numpy['slice_score']})"
@@ -359,7 +391,10 @@ class TestNumbaConsistency:
 
             # Check sum of errors (must be identical)
             assert (
-                abs(stat_numba["sum_slice_error"] - stat_numpy["sum_slice_error"])
+                abs(
+                    stat_numba["sum_slice_error"]
+                    - stat_numpy["sum_slice_error"]
+                )
                 < 1e-10
             ), (
                 f"Slice {i}: sum_error mismatch "
@@ -384,10 +419,12 @@ class TestNumbaConsistency:
         X_trans_numba = sf_numba.transform(X)
         X_trans_numpy = sf_numpy.transform(X)
 
-        assert X_trans_numba.shape == X_trans_numpy.shape, "Transform shape mismatch"
-        assert np.array_equal(
-            X_trans_numba, X_trans_numpy
-        ), "Transform produces different results"
+        assert X_trans_numba.shape == X_trans_numpy.shape, (
+            "Transform shape mismatch"
+        )
+        assert np.array_equal(X_trans_numba, X_trans_numpy), (
+            "Transform produces different results"
+        )
 
 
 if __name__ == "__main__":

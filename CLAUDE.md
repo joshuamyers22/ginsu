@@ -4,9 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Sliceline is a Python library for fast slice finding for Machine Learning model debugging. It implements the SliceLine algorithm from the paper "SliceLine: Fast, Linear-Algebra-based Slice Finding for ML Model Debugging" by Svetlana Sagadeeva and Matthias Boehm.
+Ginsu is an independent Python project for fast slice finding for Machine Learning model debugging. It implements the SliceLine algorithm from the paper "SliceLine: Fast, Linear-Algebra-based Slice Finding for ML Model Debugging" by Svetlana Sagadeeva and Matthias Boehm.
 
-**Core Purpose**: Given an input dataset `X` and a model error vector `errors`, SliceLine identifies the top `k` slices (subspaces defined by predicates) where the ML model performs significantly worse.
+**Core Purpose**: Given an input dataset `X` and a model error vector `errors`, Ginsu identifies the top `k` slices (subspaces defined by predicates) where the ML model performs significantly worse.
+
+Ginsu's sole import and distribution name is `ginsu`. Do not add a `sliceline`
+compatibility package. Read `AGENTS.md`, `docs/PROJECT_BRIEF.md`, and
+`PROJECT_MEMORY.md` before making substantial changes.
 
 ## Development Commands
 
@@ -55,10 +59,10 @@ python benchmarks/benchmarks.py
 **pytest-benchmark suite** (in `tests/test_performance.py`):
 ```sh
 # Run performance regression tests with benchmarks
-uv run pytest tests/test_performance.py -v --benchmark-only
+uv run pytest -m performance --benchmark-only
 
 # Run with full output
-uv run pytest tests/test_performance.py -v
+uv run pytest -m performance
 ```
 
 The standalone benchmarks are for profiling and manual performance analysis.
@@ -66,7 +70,7 @@ The pytest-benchmark suite is for regression testing to detect performance regre
 
 ## Architecture
 
-### Core Algorithm (sliceline/slicefinder.py)
+### Core Algorithm (ginsu/slicefinder.py)
 
 The `Slicefinder` class is a scikit-learn compatible estimator implementing the SliceLine algorithm through sparse linear algebra operations.
 
@@ -99,18 +103,21 @@ The `Slicefinder` class is a scikit-learn compatible estimator implementing the 
 - Deduplication via ID-based hashing
 - Deterministic ordering for reproducible results
 
-### Validation Module (sliceline/validation.py)
+### Input Boundary (`ginsu/_frame.py`, `ginsu/_validation.py`)
 
-Custom validation overriding sklearn's `check_array` to **accept string/object dtype inputs** (line 554-555). This is essential because SliceLine works with categorical data that may be represented as strings. The module is derived from sklearn's validation utilities but modified specifically for this use case.
+Named inputs normalize to Polars through public Arrow/dataframe interchange.
+The boundary owns ordered schema, null/NaN, reserved-name, and error-vector
+validation, then converts once to a NumPy array for the sparse engine. Production
+code must not import pandas or producer-specific private APIs.
 
-### Numba Optimization Module (sliceline/_numba_ops.py)
+### Numba Optimization Module (ginsu/_numba_ops.py)
 
 Optional JIT-compiled operations for performance improvement. Contains Numba-accelerated versions of:
 - `score_slices_numba()`: 5-6x faster slice scoring
 - `score_ub_single_numba()` / `score_ub_batch_numba()`: Upper-bound scoring
 - `compute_slice_ids_numba()`: ID computation for deduplication
 
-**Coverage exclusion**: This module is excluded from coverage requirements (similar to `validation.py`) because:
+**Coverage exclusion**: This module is currently excluded from the aggregate coverage requirement because:
 1. It's completely optional (only loaded if Numba is installed)
 2. Functions are tested indirectly through main slicefinder tests
 3. Numba implementations are verified to produce numerically identical results to NumPy fallbacks
@@ -149,7 +156,7 @@ Optional JIT-compiled operations for performance improvement. Contains Numba-acc
 ### Testing Requirements
 - Unit tests must pass for all changes
 - Coverage threshold: 80% minimum (configured in pyproject.toml)
-- Coverage excludes: validation.py, _numba_ops.py, tests/, hidden files
+- Coverage excludes: _numba_ops.py, tests/, hidden files
 - Benchmarking: Available via pytest-benchmark for performance-sensitive changes
 
 ### Adding New Features
@@ -192,9 +199,9 @@ The `Slicefinder` class follows scikit-learn conventions:
 
 ## Performance Considerations
 
-### When to Use Sliceline
+### When to Use Ginsu
 
-Sliceline is designed for datasets where:
+Ginsu is designed for datasets where:
 - You want to find subgroups where your ML model underperforms
 - Features are categorical or can be binned (continuous values should be discretized)
 - Dataset size is reasonable (10K-100K samples works well)

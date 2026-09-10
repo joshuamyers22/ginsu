@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from scipy import sparse as sp
 
-from sliceline import slicefinder
+from ginsu import slicefinder
 from tests.experiment import Experiment
 
 

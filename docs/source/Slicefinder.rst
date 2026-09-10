@@ -1,4 +1,0 @@
-Slicefinder
-===========
-
-.. autoclass:: sliceline.Slicefinder

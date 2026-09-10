@@ -1,0 +1,46 @@
+# Ginsu Project Memory
+
+This is a bounded, evidence-linked index of durable project state. Source,
+tests, the project brief, and approved ADRs remain authoritative.
+
+## Durable constraints
+
+| Key | Constraint | Evidence | Last verified |
+|---|---|---|---|
+| `independent-identity` | Ginsu is a new independent project. Its distribution and import name are `ginsu`; it does not provide a `sliceline` compatibility import. | `docs/adr/0001-ginsu-project-identity.md`; `pyproject.toml` | 2026-09-09 |
+| `upstream-attribution` | The SliceLine algorithm and inherited DataDome implementation remain attributed; the upstream Git remote is fetch-only locally. | `README.rst`; `LICENSE`; local Git remote configuration | 2026-09-09 |
+| `error-domain` | Search errors are finite, nonnegative numeric or Boolean indicator losses with at least one positive value. | `ginsu/_validation.py`; `tests/test_frame.py`; `tests/test_slicefinder.py` | 2026-09-09 |
+
+## Accepted decisions
+
+| Key | Decision and rationale | Evidence | Last verified |
+|---|---|---|---|
+| `polars-arrow-boundary` | Polars will be the canonical named-table model. Compatible pandas and PyArrow producers enter through public Arrow/PyCapsule or dataframe interchange without a Ginsu pandas import. | `docs/adr/0002-polars-arrow-boundary.md`; `docs/POLARS_VISUALIZATION_PRODUCTION_PLAN.md` | 2026-09-09 |
+| `sparse-engine` | Preserve the NumPy/SciPy sparse engine until controlled benchmarks and parity tests justify changing it. | `docs/adr/0002-polars-arrow-boundary.md` | 2026-09-09 |
+| `optional-plotly` | Plot-data builders are pure Polars; Plotly is lazily loaded from the optional `plot` extra. Dependence views are labeled observed associations rather than causal or conventional partial dependence. | `docs/adr/0003-optional-plotting-boundary.md`; `ginsu/_plot_data.py`; `ginsu/plotting.py` | 2026-09-09 |
+| `safe-analysis-artifact` | Artifact v1 is closed-schema canonical JSON plus three uncompressed Arrow IPC result tables. It contains no raw rows or executable objects and fails closed on versions, files, symlinks, bounds, hashes, schemas, canonical IDs, and table relationships. | `docs/adr/0004-safe-slice-analysis-artifact.md`; `ginsu/artifacts.py`; `tests/test_artifacts.py` | 2026-09-09 |
+
+## Non-obvious current state
+
+| Key | State | Evidence | Last verified |
+|---|---|---|---|
+| `independent-repository` | The public independent repository is `joshuamyers22/ginsu`. The DataDome repository remains a fetch-only `upstream` with push URL `DISABLED`. | `pyproject.toml`; local Git remote configuration | 2026-09-09 |
+| `implementation-plan` | The production plan includes repository hardening, Polars/Arrow, statistical validation, plotting, artifacts, comparisons, and bounded delivery phases. | `docs/POLARS_VISUALIZATION_PRODUCTION_PLAN.md` | 2026-09-09 |
+| `phase-one-foundation` | Polars is a locked core dependency; supported Arrow/pandas producers normalize without production pandas imports; canonical result frames and stable slice IDs are implemented. | `ginsu/_frame.py`; `ginsu/_domain.py`; `ginsu/slicefinder.py`; `tests/test_frame.py`; `tests/test_domain.py` | 2026-09-09 |
+| `phase-one-contract-evidence` | Cross-producer tests cover Polars, PyArrow, Arrow-backed pandas, chunked Arrow, categorical/dictionary, Unicode, date, Boolean, null/NaN, unknown-category, dtype mismatch, copy policy, empty result schemas, and stable-ID membership. | `tests/test_interop.py`; `tests/test_frame.py`; `tests/test_domain.py` | 2026-09-09 |
+| `discretization-foundation` | Fitted Polars-native fixed, equal-width, quantile, and categorical strategies learn only from the frame passed to `fit`; transform reuses exact schema, boundaries, retained levels, and rare/unknown policies. | `ginsu/discretization.py`; `tests/test_discretization.py`; `docs/source/Discretization.rst` | 2026-09-09 |
+| `bounded-search-diagnostics` | Every normalized fit produces an immutable success, empty, failed, or limit-terminated report. Cardinality, encoded-width, dense-pair bytes, candidates, elapsed time, and tied results have stable fail-fast limits; limit termination never leaves the estimator fitted. | `ginsu/diagnostics.py`; `ginsu/slicefinder.py`; `tests/test_diagnostics.py` | 2026-09-09 |
+| `visual-analysis-foundation` | Stable-ID membership now feeds bounded predicate-matrix, exact-equivalence, and full symmetric Jaccard tables; exact one-predicate lattice edges and optional Plotly composition/overlap/lattice renderers are deterministic and explicitly non-causal where applicable. | `ginsu/_plot_data.py`; `ginsu/plotting.py`; `tests/test_plotting.py`; `docs/source/Visualization.rst` | 2026-09-09 |
+| `artifact-foundation` | `SliceAnalysis.from_finder()` captures canonical fitted tables, search evidence, provenance fingerprints, and an optional fitted discretizer; deterministic atomic writes and bounded strict reads round-trip without pandas or PyArrow. | `ginsu/artifacts.py`; `ginsu/discretization.py`; `tests/test_artifacts.py`; `docs/source/Artifacts.rst` | 2026-09-09 |
+
+## Verified traps
+
+| Key | Trap | Evidence | Last verified |
+|---|---|---|---|
+| `benchmark-coupled-tests-resolved` | Inherited correctness tests now use a one-shot local runner. Dedicated timing tests carry the `performance` marker and are excluded from the normal correctness gate. | `tests/test_slicefinder.py`; `tests/test_performance.py`; `pyproject.toml` | 2026-09-09 |
+
+## Open threads
+
+| Key | Open decision | Evidence | Last verified |
+|---|---|---|---|
+| `pypi-publication` | PyPI authority and trusted-publisher configuration remain unapproved; release workflows stay build-only. | `docs/PROJECT_BRIEF.md`; `.github/workflows/release.yml` | 2026-09-09 |
