@@ -4,7 +4,13 @@ import numpy as np
 import polars as pl
 import pytest
 
-from ginsu import AnalysisLimitError, Slicefinder
+from ginsu import (
+    AnalysisLimitError,
+    Slicefinder,
+    StabilityRun,
+    evaluate_similarity_stability,
+    evaluate_stability,
+)
 from ginsu._plot_data import (
     equivalence_groups,
     error_dependence_data,
@@ -13,6 +19,12 @@ from ginsu._plot_data import (
     lattice_edges_data,
     overlap_data,
     predicate_matrix_data,
+)
+from ginsu._stability_plot_data import (
+    SENSITIVITY_PLOT_SCHEMA,
+    STABILITY_PLOT_SCHEMA,
+    sensitivity_plot_data,
+    stability_plot_data,
 )
 
 
@@ -45,6 +57,49 @@ def overlap_example():
         alpha=0.95, k=20, max_l=2, min_sup=1, verbose=False
     ).fit(frame, errors)
     return finder, frame
+
+
+def _stability_finder(region: str) -> Slicefinder:
+    frame = pl.DataFrame({"region": ["east"] * 10 + ["west"] * 10})
+    errors = (
+        [5.0] * 10 + [1.0] * 10
+        if region == "east"
+        else [1.0] * 10 + [5.0] * 10
+    )
+    return Slicefinder(alpha=0.95, k=1, max_l=1, min_sup=2, verbose=False).fit(
+        frame, errors
+    )
+
+
+@pytest.fixture
+def stability_report():
+    runs = [
+        StabilityRun.from_finder(
+            _stability_finder("east"),
+            run_id="run-1",
+            partition_id="train-1",
+            resampling_unit="account",
+            parameters={"alpha": 0.8, "mode": "strict"},
+        ),
+        StabilityRun.from_finder(
+            _stability_finder("west"),
+            run_id="run-2",
+            partition_id="train-2",
+            resampling_unit="account",
+            parameters={"alpha": 0.9, "mode": "lenient"},
+        ),
+        StabilityRun.unavailable(
+            run_id="run-3",
+            status="limit_reached",
+            partition_id="train-3",
+            resampling_unit="account",
+            failure_reason="candidate limit",
+            parameters={"alpha": 1.0, "mode": "strict"},
+        ),
+    ]
+    return evaluate_stability(runs), evaluate_similarity_stability(
+        runs, method="predicate", similarity_threshold=0.8
+    )
 
 
 def test_impact_data_uses_canonical_metrics(fitted_example):
@@ -244,3 +299,105 @@ def test_predicate_matrix_figure_labels_composition(overlap_example):
 
     assert figure.layout.title.text == "Ginsu predicate matrix"
     assert figure.layout.xaxis.title.text == "Feature"
+
+
+def test_stability_plot_data_normalizes_exact_and_similarity_reports(
+    stability_report,
+):
+    exact, similarity = stability_report
+
+    exact_data = stability_plot_data(exact, metric="rank")
+    similar_data = stability_plot_data(similarity, metric="similarity")
+
+    assert exact_data.schema == STABILITY_PLOT_SCHEMA
+    assert similar_data.schema == STABILITY_PLOT_SCHEMA
+    assert exact_data.height == exact.summary.height * exact.runs.height
+    assert similar_data.height == (
+        similarity.summary.height * similarity.exact.runs.height
+    )
+    assert set(exact_data["report_kind"]) == {"exact"}
+    assert set(similar_data["report_kind"]) == {"similarity"}
+    assert set(similar_data["similarity_method"]) == {"predicate"}
+    unavailable = exact_data.filter(pl.col("run_id") == "run-3")
+    assert unavailable["evidence_available"].to_list() == [False, False]
+    assert unavailable["observation_value"].null_count() == 2
+
+
+def test_sensitivity_data_preserves_numeric_parameter_and_absence(
+    stability_report,
+):
+    exact, _ = stability_report
+
+    data = sensitivity_plot_data(exact, parameter="alpha", metric="selected")
+
+    assert data.schema == SENSITIVITY_PLOT_SCHEMA
+    assert set(data["parameter_kind"]) == {"float"}
+    assert data["parameter_is_numeric"].all()
+    assert set(data["parameter_numeric"].drop_nulls()) == {0.8, 0.9, 1.0}
+    assert set(data["observation_value"].drop_nulls()) == {0.0, 1.0}
+    assert (
+        data.filter(pl.col("run_id") == "run-3")[
+            "observation_value"
+        ].null_count()
+        == 2
+    )
+
+
+def test_categorical_sensitivity_is_not_treated_as_numeric(stability_report):
+    exact, _ = stability_report
+
+    data = sensitivity_plot_data(exact, parameter="mode", metric="rank")
+
+    assert not data["parameter_is_numeric"].any()
+    assert set(data["parameter_value"]) == {"strict", "lenient"}
+    assert data["parameter_numeric"].null_count() == data.height
+
+
+def test_stability_plot_marks_unavailable_runs(stability_report):
+    pytest.importorskip("plotly")
+    from ginsu.plotting import plot_stability
+
+    exact, similarity = stability_report
+    exact_figure = plot_stability(exact)
+    similarity_figure = plot_stability(similarity, metric="similarity")
+
+    assert exact_figure.layout.title.text == "Ginsu exact-rule stability"
+    assert similarity_figure.layout.title.text == (
+        "Ginsu predicate-similarity stability"
+    )
+    assert "unavailable" in exact_figure.layout.annotations[-1].text
+    assert -1 in np.asarray(exact_figure.data[-1].z)
+    assert exact_figure.data[-1].colorbar.title.text == "Run evidence"
+
+
+def test_sensitivity_plot_uses_unconnected_markers_and_evidence_panel(
+    stability_report,
+):
+    pytest.importorskip("plotly")
+    from ginsu.plotting import plot_sensitivity
+
+    exact, _ = stability_report
+    figure = plot_sensitivity(exact, parameter="mode", metric="rank")
+
+    assert figure.layout.title.text == "Ginsu sensitivity: mode vs. rank"
+    assert all(trace.mode == "markers" for trace in figure.data[:-1])
+    assert -1 in np.asarray(figure.data[-1].z)
+    assert "not a causal" in figure.layout.annotations[-1].text
+
+
+def test_stability_plot_data_limits_and_invalid_options(stability_report):
+    exact, _ = stability_report
+
+    with pytest.raises(AnalysisLimitError) as raised:
+        stability_plot_data(exact, max_slices=1)
+    assert raised.value.code == "GINSU_MAX_STABILITY_PLOT_SLICES"
+
+    with pytest.raises(AnalysisLimitError) as raised:
+        stability_plot_data(exact, max_cells=1)
+    assert raised.value.code == "GINSU_MAX_STABILITY_PLOT_CELLS"
+
+    with pytest.raises(ValueError, match="SimilarityStabilityReport"):
+        stability_plot_data(exact, metric="similarity")
+
+    with pytest.raises(ValueError, match="missing"):
+        sensitivity_plot_data(exact, parameter="unknown")

@@ -99,6 +99,9 @@ limit-terminated attempts remain visible rather than being counted as false
 slice absences. ``evaluate_similarity_stability`` separately matches related
 rules by canonical predicate-set Jaccard or by membership Jaccard on a
 verified common reference population; exact identities are never overwritten.
+Optional ``plot_stability`` and ``plot_sensitivity`` render recurrence,
+run-level metric distributions, parameter response, and unavailable-run
+evidence without converting the Polars data contracts to pandas.
 
 Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
 compatible pandas and PyArrow tables enter through public Arrow or dataframe

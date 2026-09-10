@@ -104,3 +104,46 @@ An edge exists only when the child contains every parent predicate and adds
 exactly one more. Vertical levels are predicate counts; node size is support;
 node color is observed error lift. These edges describe logical rule
 refinement, not causality, dependence, or observed transitions.
+
+Stability and sensitivity
+-------------------------
+
+Exact and similarity-aware stability reports share the same bounded renderer:
+
+.. code:: python
+
+   from ginsu.plotting import plot_sensitivity, plot_stability
+
+   frequency_figure = plot_stability(
+       stability_report,
+       metric="selection_frequency",
+   )
+   rank_figure = plot_stability(stability_report, metric="rank")
+   sensitivity_figure = plot_sensitivity(
+       stability_report,
+       parameter="alpha",
+       metric="rank",
+   )
+
+The stability figure pairs aggregate frequency or observed run-level metric
+distributions with a complete evidence matrix. Blue means selected or matched,
+white means absent in a successful run, and gray means that the run failed or
+hit a resource limit. Similarity reports label their predicate or membership
+method; membership reports also display the caller-declared reference ID.
+
+Sensitivity plots read scalar values from each run's canonical
+``parameters_json``. Every run, including an unavailable run, must record the
+requested parameter. Numeric values retain numeric axes; Boolean, string,
+null, or mixed values use categorical axes. Markers are deliberately not
+connected, so categorical configurations do not imply continuity and numeric
+configurations do not imply a fitted response function.
+
+Supported stability metrics are selection frequency, rank, slice score,
+support fraction, error lift, and—on similarity reports—Jaccard similarity.
+Sensitivity supports selection/match presence, rank, slice score, support
+fraction, and error lift. Slice and rendered-cell bounds are checked before
+plot data is expanded.
+
+These are descriptive diagnostics across caller-declared runs. They do not
+establish significance, causality, or robustness beyond the supplied
+partitions and configurations.

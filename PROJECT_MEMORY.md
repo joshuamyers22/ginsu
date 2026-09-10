@@ -24,6 +24,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `auditable-post-selection` | Score, exact-membership, and greedy Jaccard-diversity views preserve raw discoveries and retain every candidate with representative, exclusion, and incremental-coverage evidence on an explicit reference frame. | `docs/adr/0007-auditable-diversity-selection.md`; `ginsu/selection.py`; `tests/test_selection.py` | 2026-09-10 |
 | `exact-rule-stability` | Stability aggregation consumes caller-controlled run evidence, counts exact canonical recurrence, and retains failed/limited attempts as unavailable rather than false absences. | `docs/adr/0008-exact-rule-stability-foundation.md`; `ginsu/stability.py`; `tests/test_stability.py` | 2026-09-10 |
 | `anchor-stability-similarity` | Related-rule recurrence is a separate anchor-based report using predicate-set or verified common-reference membership Jaccard; it does not merge canonical IDs or form transitive fuzzy clusters. | `docs/adr/0009-anchor-based-stability-similarity.md`; `ginsu/stability.py`; `tests/test_stability.py` | 2026-09-10 |
+| `stability-visualization` | Stability and scalar-parameter sensitivity use bounded Polars plot rows, unconnected run observations, and explicit present/absent/unavailable evidence; Plotly remains optional. | `docs/adr/0010-stability-sensitivity-visualization.md`; `ginsu/_stability_plot_data.py`; `ginsu/plotting.py`; `tests/test_plotting.py` | 2026-09-10 |
 
 ## Non-obvious current state
 
@@ -41,6 +42,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `selection-foundation` | Deterministic score, exact-membership, and greedy diversity views are bounded and leave fitted ranking untouched while recording every candidate decision. | `ginsu/selection.py`; `tests/test_selection.py`; `docs/source/Selection.rst` | 2026-09-10 |
 | `stability-foundation` | Exact slice recurrence and rank/score/support/lift distributions are aggregated across successful runs; attempted failures and limits remain explicit, with bounded cross-run tables. | `ginsu/stability.py`; `tests/test_stability.py`; `docs/source/Stability.rst` | 2026-09-10 |
 | `stability-similarity` | Canonical predicate Jaccard and membership Jaccard on caller-identified, ordered-row-fingerprinted common references produce bounded deterministic best-match audit tables and summaries. | `ginsu/stability.py`; `tests/test_stability.py`; `docs/source/Stability.rst` | 2026-09-10 |
+| `stability-plotting` | Exact and similarity stability reports render frequency/distribution plus full run-evidence panels; sensitivity reads canonical scalar run parameters and never connects observed configurations. | `ginsu/_stability_plot_data.py`; `ginsu/plotting.py`; `tests/test_plotting.py`; `docs/source/Visualization.rst` | 2026-09-10 |
 
 ## Verified traps
 

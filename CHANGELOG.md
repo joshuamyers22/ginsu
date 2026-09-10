@@ -44,6 +44,9 @@ after the pre-1.0 API is established.
 - Deterministic anchor-based predicate and common-reference membership
   similarity reports with audited candidates, row-identity fingerprints,
   undefined-empty handling, and fail-fast work limits.
+- Pure-Polars stability and parameter-sensitivity plot data with bounded
+  optional Plotly frequency, distribution, parameter-response, and run-evidence
+  panels.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed

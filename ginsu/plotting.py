@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import polars as pl
 
 from ginsu._plot_data import (
     error_dependence_data,
@@ -13,6 +14,12 @@ from ginsu._plot_data import (
     lattice_edges_data,
     overlap_data,
     predicate_matrix_data,
+)
+from ginsu._stability_plot_data import (
+    SensitivityMetric,
+    StabilityPlotMetric,
+    sensitivity_plot_data,
+    stability_plot_data,
 )
 
 
@@ -388,6 +395,338 @@ def plot_lattice(finder: Any, *, max_nodes: int = 100):
     return figure
 
 
+def plot_stability(
+    report: Any,
+    *,
+    metric: StabilityPlotMetric = "selection_frequency",
+    max_slices: int = 100,
+    max_cells: int = 100_000,
+):
+    """Plot recurrence or per-run metric distributions with availability."""
+    go = _plotly_graph_objects()
+    make_subplots = _plotly_make_subplots()
+    data = stability_plot_data(
+        report,
+        metric=metric,
+        max_slices=max_slices,
+        max_cells=max_cells,
+    )
+    if not data.height:
+        figure = go.Figure()
+        figure.add_annotation(text="No discovered slices", showarrow=False)
+        figure.update_layout(title="Ginsu stability", template="plotly_white")
+        return figure
+
+    rules = data["anchor_rule"].unique(maintain_order=True).to_list()
+    run_ids = data["run_id"].unique(maintain_order=True).to_list()
+    figure = make_subplots(
+        rows=1,
+        cols=2,
+        shared_yaxes=True,
+        column_widths=(0.55, 0.45),
+        horizontal_spacing=0.03,
+        subplot_titles=("Summary / observed distribution", "Run evidence"),
+    )
+    if metric == "selection_frequency":
+        aggregate = data.unique("anchor_id", maintain_order=True)
+        figure.add_trace(
+            go.Bar(
+                x=aggregate["frequency_successful"].to_list(),
+                y=aggregate["anchor_rule"].to_list(),
+                orientation="h",
+                marker_color=[
+                    _stability_color(status)
+                    for status in aggregate["stability_status"].to_list()
+                ],
+                customdata=aggregate.select(
+                    "present_run_count",
+                    "successful_run_count",
+                    "unavailable_run_count",
+                    "stability_status",
+                ).to_numpy(),
+                hovertemplate=(
+                    "%{y}<br>Frequency=%{x:.1%}"
+                    "<br>Present=%{customdata[0]}/%{customdata[1]}"
+                    "<br>Unavailable=%{customdata[2]}"
+                    "<br>Status=%{customdata[3]}<extra></extra>"
+                ),
+                showlegend=False,
+            ),
+            row=1,
+            col=1,
+        )
+    else:
+        for rule in rules:
+            observed = data.filter(
+                (pl.col("anchor_rule") == rule)
+                & pl.col("observation_value").is_not_null()
+            )
+            figure.add_trace(
+                go.Box(
+                    x=observed["observation_value"].to_list(),
+                    y=[rule] * observed.height,
+                    orientation="h",
+                    boxpoints="all",
+                    jitter=0.25,
+                    pointpos=0,
+                    customdata=observed.select(
+                        "run_id", "run_status"
+                    ).to_numpy(),
+                    hovertemplate=(
+                        "%{y}<br>Value=%{x:.4g}<br>Run=%{customdata[0]}"
+                        "<br>Status=%{customdata[1]}<extra></extra>"
+                    ),
+                    showlegend=False,
+                    marker_color="#4c78a8",
+                ),
+                row=1,
+                col=1,
+            )
+    z, statuses = _run_evidence_matrix(data, rules=rules, run_ids=run_ids)
+    figure.add_trace(
+        go.Heatmap(
+            x=run_ids,
+            y=rules,
+            z=z,
+            zmin=-1,
+            zmax=1,
+            colorscale=(
+                (0.0, "#8c8c8c"),
+                (0.499, "#8c8c8c"),
+                (0.5, "#f2f2f2"),
+                (0.749, "#f2f2f2"),
+                (0.75, "#4c78a8"),
+                (1.0, "#4c78a8"),
+            ),
+            colorbar={
+                "title": "Run evidence",
+                "tickvals": (-1, 0, 1),
+                "ticktext": ("Unavailable", "Absent", "Present"),
+            },
+            customdata=statuses,
+            hovertemplate=(
+                "%{y}<br>Run=%{x}<br>Evidence=%{customdata}<extra></extra>"
+            ),
+        ),
+        row=1,
+        col=2,
+    )
+    report_kind = data["report_kind"][0]
+    similarity_method = data["similarity_method"][0]
+    title = (
+        "Ginsu exact-rule stability"
+        if report_kind == "exact"
+        else f"Ginsu {similarity_method}-similarity stability"
+    )
+    note = "Descriptive recurrence; gray cells are unavailable runs."
+    reference_id = data["reference_id"][0]
+    if reference_id is not None:
+        note += f" Reference: {reference_id}."
+    figure.update_layout(
+        title=title,
+        template="plotly_white",
+        height=max(420, 34 * len(rules) + 180),
+        annotations=[
+            *list(figure.layout.annotations),
+            {
+                "text": note,
+                "showarrow": False,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0,
+                "y": 1.12,
+                "xanchor": "left",
+            },
+        ],
+    )
+    figure.update_xaxes(
+        title_text=_stability_metric_label(metric), row=1, col=1
+    )
+    if metric == "selection_frequency":
+        figure.update_xaxes(range=(0, 1), tickformat=".0%", row=1, col=1)
+    elif metric == "rank":
+        figure.update_xaxes(autorange="reversed", row=1, col=1)
+    figure.update_xaxes(title_text="Run", row=1, col=2)
+    figure.update_yaxes(title_text="Slice rule", row=1, col=1)
+    return figure
+
+
+def plot_sensitivity(
+    report: Any,
+    *,
+    parameter: str,
+    metric: SensitivityMetric = "rank",
+    max_slices: int = 20,
+    max_cells: int = 100_000,
+):
+    """Plot run-level parameter response without implying causal effects."""
+    go = _plotly_graph_objects()
+    make_subplots = _plotly_make_subplots()
+    data = sensitivity_plot_data(
+        report,
+        parameter=parameter,
+        metric=metric,
+        max_slices=max_slices,
+        max_cells=max_cells,
+    )
+    if not data.height:
+        figure = go.Figure()
+        figure.add_annotation(text="No discovered slices", showarrow=False)
+        figure.update_layout(
+            title="Ginsu sensitivity", template="plotly_white"
+        )
+        return figure
+    figure = make_subplots(
+        rows=2,
+        cols=1,
+        row_heights=(0.72, 0.28),
+        vertical_spacing=0.16,
+        subplot_titles=("Observed parameter response", "Run evidence"),
+    )
+    numeric = data["parameter_is_numeric"][0]
+    rules = data["anchor_rule"].unique(maintain_order=True).to_list()
+    for rule in rules:
+        observed = data.filter(
+            (pl.col("anchor_rule") == rule)
+            & pl.col("observation_value").is_not_null()
+        )
+        x_column = "parameter_numeric" if numeric else "parameter_value"
+        figure.add_trace(
+            go.Scatter(
+                x=observed[x_column].to_list(),
+                y=observed["observation_value"].to_list(),
+                mode="markers",
+                name=rule,
+                customdata=observed.select(
+                    "run_id", "run_status", "parameter_value"
+                ).to_numpy(),
+                hovertemplate=(
+                    "%{fullData.name}<br>Parameter=%{customdata[2]}"
+                    "<br>Value=%{y:.4g}<br>Run=%{customdata[0]}"
+                    "<br>Status=%{customdata[1]}<extra></extra>"
+                ),
+            ),
+            row=1,
+            col=1,
+        )
+    run_ids = data["run_id"].unique(maintain_order=True).to_list()
+    labels = []
+    for run_id in run_ids:
+        value = data.filter(pl.col("run_id") == run_id)["parameter_value"][0]
+        labels.append(f"{run_id}<br>{parameter}={value}")
+    z, statuses = _run_evidence_matrix(data, rules=rules, run_ids=run_ids)
+    figure.add_trace(
+        go.Heatmap(
+            x=labels,
+            y=rules,
+            z=z,
+            zmin=-1,
+            zmax=1,
+            colorscale=(
+                (0.0, "#8c8c8c"),
+                (0.499, "#8c8c8c"),
+                (0.5, "#f2f2f2"),
+                (0.749, "#f2f2f2"),
+                (0.75, "#4c78a8"),
+                (1.0, "#4c78a8"),
+            ),
+            showscale=False,
+            customdata=statuses,
+            hovertemplate=(
+                "%{y}<br>%{x}<br>Evidence=%{customdata}<extra></extra>"
+            ),
+        ),
+        row=2,
+        col=1,
+    )
+    figure.update_layout(
+        title=f"Ginsu sensitivity: {parameter} vs. {metric}",
+        template="plotly_white",
+        height=max(620, 30 * len(rules) + 440),
+        annotations=[
+            *list(figure.layout.annotations),
+            {
+                "text": (
+                    "Descriptive across declared runs; markers are not a "
+                    "causal or significance claim."
+                ),
+                "showarrow": False,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0,
+                "y": 1.10,
+                "xanchor": "left",
+            },
+        ],
+    )
+    figure.update_xaxes(title_text=parameter, row=1, col=1)
+    figure.update_yaxes(
+        title_text=_sensitivity_metric_label(metric), row=1, col=1
+    )
+    if metric == "rank":
+        figure.update_yaxes(autorange="reversed", row=1, col=1)
+    figure.update_xaxes(
+        title_text="Run and parameter configuration", row=2, col=1
+    )
+    figure.update_yaxes(title_text="Slice rule", row=2, col=1)
+    return figure
+
+
+def _run_evidence_matrix(data, *, rules, run_ids):
+    by_key = {
+        (row["anchor_rule"], row["run_id"]): row
+        for row in data.iter_rows(named=True)
+    }
+    values = []
+    statuses = []
+    for rule in rules:
+        value_row = []
+        status_row = []
+        for run_id in run_ids:
+            row = by_key[(rule, run_id)]
+            if not row["evidence_available"]:
+                value_row.append(-1)
+                status_row.append(row["run_status"])
+            elif row["present"]:
+                value_row.append(1)
+                status_row.append("present")
+            else:
+                value_row.append(0)
+                status_row.append("absent")
+        values.append(value_row)
+        statuses.append(status_row)
+    return values, statuses
+
+
+def _stability_color(status: str) -> str:
+    return {
+        "stable": "#2e8b57",
+        "fragile": "#e07b39",
+        "insufficient_successful_runs": "#8c8c8c",
+    }[status]
+
+
+def _stability_metric_label(metric: str) -> str:
+    return {
+        "selection_frequency": "Selection / match frequency",
+        "rank": "Discovery rank",
+        "slice_score": "Slice score",
+        "support_fraction": "Support fraction",
+        "error_lift": "Observed error lift",
+        "similarity": "Jaccard similarity",
+    }[metric]
+
+
+def _sensitivity_metric_label(metric: str) -> str:
+    return {
+        "selected": "Selected / matched",
+        "rank": "Discovery rank",
+        "slice_score": "Slice score",
+        "support_fraction": "Support fraction",
+        "error_lift": "Observed error lift",
+    }[metric]
+
+
 def _sample_rows(data, *, max_points: int, seed: int):
     if data.height <= max_points:
         return data
@@ -404,3 +743,13 @@ def _plotly_graph_objects():
             "Plotting requires the optional dependency: pip install 'ginsu[plot]'."
         ) from error
     return go
+
+
+def _plotly_make_subplots():
+    try:
+        from plotly.subplots import make_subplots
+    except ImportError as error:
+        raise ImportError(
+            "Plotting requires the optional dependency: pip install 'ginsu[plot]'."
+        ) from error
+    return make_subplots

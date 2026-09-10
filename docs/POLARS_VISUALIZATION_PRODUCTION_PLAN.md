@@ -34,8 +34,10 @@ implemented as bounded audit views that preserve discovery ranking. Full-search
 permutation remains open. Failure-aware exact-rule stability across
 caller-controlled runs is implemented together with bounded, anchor-based
 predicate similarity and membership similarity on verified common reference
-rows. Hyperparameter sensitivity remains open, as do comparison, notebook
-migration, and release hardening.
+rows. Bounded stability and scalar hyperparameter-sensitivity data and Plotly
+views are implemented with explicit unavailable-run evidence. Automated
+parameter-grid execution remains caller-controlled. Comparison, notebook
+migration, and release hardening remain open.
 
 ## 1. Executive summary
 

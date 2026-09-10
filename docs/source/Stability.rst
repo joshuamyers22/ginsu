@@ -158,3 +158,12 @@ a stable code.
 The caller remains responsible for independent sampling units, leakage-safe
 preprocessing, temporal ordering, label availability, and whether the number
 of successful runs supports a stability claim.
+
+Visualization
+-------------
+
+``ginsu.plotting.plot_stability`` renders exact or similarity-aware recurrence
+with a run-evidence matrix. ``ginsu.plotting.plot_sensitivity`` renders a
+declared scalar run parameter against observed selection, rank, score, support,
+or error lift. Both retain unavailable runs visually and are documented in the
+visualization guide.
