@@ -133,3 +133,5 @@ Plotting
 .. autofunction:: ginsu.plotting.plot_sensitivity
 
 .. autofunction:: ginsu.plotting.plot_comparison
+
+.. autofunction:: ginsu.plotting.plot_search_report

@@ -40,8 +40,11 @@ parameter-grid execution remains caller-controlled. The artifact comparison
 foundation now implements exact/predicate/membership matching, metric and rule
 deltas, migration counts, and explicit incompatible results. Bounded comparison
 dumbbells and common-reference membership-migration views are implemented.
-Overlap-adjusted attribution, validation/stability-status deltas, structured
-time-window metadata, notebook migration, and release hardening remain open.
+The bounded search-profile view now covers completed-level candidate funnels,
+source cardinality, backend/copy evidence, active limits, total elapsed time,
+and early termination. Stage timing and peak-memory instrumentation remain
+open, as do overlap-adjusted attribution, validation/stability-status deltas,
+structured time-window metadata, notebook migration, and release hardening.
 
 ## 1. Executive summary
 
@@ -944,10 +947,12 @@ plot_search_report(finder.search_report_)
 ```
 
 - Candidate funnel by lattice level and pruning reason.
-- Stage timing and optional peak-memory profile.
+- Total elapsed time from the current report; stage timing and optional
+  peak-memory profiles follow a separate instrumentation contract.
 - Cardinality contribution by source feature.
 - Resource-limit thresholds and the actual termination point.
 - Backend/acceleration state and copy boundaries in figure metadata/tooltips.
+- Pre-lattice failures and unavailable level-one pair stages remain explicit.
 
 This plot explains search cost; it must not be presented as model-quality
 evidence.

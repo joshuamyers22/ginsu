@@ -173,3 +173,35 @@ Comparison plot data is bounded by ``max_changes`` before Plotly is loaded.
 Incompatible analyses render their compatibility status explicitly. These
 figures are descriptive and per-rule: overlapping slices make a sum across
 bars or excess-error deltas non-attributive.
+
+Search profile
+--------------
+
+.. code:: python
+
+   from ginsu.plotting import plot_search_report
+
+   profile = plot_search_report(
+       finder.search_report_,
+       max_levels=100,
+       max_features=100,
+       max_cells=10_000,
+   )
+
+The upper panel shows recorded source slices, potential pairs, compatible
+pairs, post-pruning candidates, evaluated candidates, and valid candidates for
+every completed lattice level. Level one evaluates one-predicate literals
+directly, so its pair stages are unavailable rather than zero. A terminated
+search labels its last completed level and retains the exact termination reason
+and stable warning code.
+
+The lower panel shows ordered source-feature cardinality and visibly marks a
+cardinality-limit breach. Backend, Numba use, normalized input size, encoded
+width, copy boundaries, total elapsed time, termination, and active limits stay
+in annotations, hover data, or figure metadata.
+
+Level, rendered-cell, and feature bounds are checked in pure Polars plot-data
+builders before Plotly is loaded. ``SearchReport`` currently records total
+elapsed time but not per-stage timing or peak-memory samples; the figure states
+that absence rather than inferring measurements. This plot explains search
+execution and resource pressure. It is not model-quality evidence.

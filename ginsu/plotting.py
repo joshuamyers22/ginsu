@@ -20,6 +20,11 @@ from ginsu._plot_data import (
     overlap_data,
     predicate_matrix_data,
 )
+from ginsu._search_plot_data import (
+    search_cardinality_data,
+    search_funnel_data,
+    search_summary_data,
+)
 from ginsu._stability_plot_data import (
     SensitivityMetric,
     StabilityPlotMetric,
@@ -27,6 +32,7 @@ from ginsu._stability_plot_data import (
     stability_plot_data,
 )
 from ginsu.comparison import AnalysisComparison
+from ginsu.diagnostics import SearchReport
 
 
 def plot_impact(finder: Any):
@@ -715,6 +721,202 @@ def plot_comparison(
     if kind == "migration":
         return _plot_comparison_migration(comparison, data=data, go=go)
     return _plot_comparison_dumbbell(data, go=go, metric=metric)
+
+
+def plot_search_report(
+    report: SearchReport,
+    *,
+    max_levels: int = 100,
+    max_features: int = 100,
+    max_cells: int = 10_000,
+):
+    """Plot bounded search attrition and feature-cardinality diagnostics."""
+    funnel = search_funnel_data(
+        report, max_levels=max_levels, max_cells=max_cells
+    )
+    cardinality = search_cardinality_data(report, max_features=max_features)
+    summary = search_summary_data(report)
+    go = _plotly_graph_objects()
+    make_subplots = _plotly_make_subplots()
+    figure = make_subplots(
+        rows=2,
+        cols=1,
+        row_heights=(0.64, 0.36),
+        vertical_spacing=0.18,
+        subplot_titles=(
+            "Completed-level candidate funnel",
+            "Source-feature cardinality",
+        ),
+    )
+
+    stage_styles = (
+        ("Source slices", "#4c78a8", "circle", "solid"),
+        ("Potential pairs", "#f58518", "square", "dash"),
+        ("Compatible pairs", "#e45756", "diamond", "dot"),
+        ("After pruning", "#72b7b2", "cross", "dashdot"),
+        ("Evaluated candidates", "#54a24b", "x", "longdash"),
+        ("Valid candidates", "#b279a2", "triangle-up", "longdashdot"),
+    )
+    for stage, color, symbol, dash in stage_styles:
+        group = funnel.filter(
+            (pl.col("stage") == stage) & pl.col("count").is_not_null()
+        )
+        if not group.height:
+            continue
+        figure.add_trace(
+            go.Scatter(
+                x=group["level"].to_list(),
+                y=group["count"].to_list(),
+                mode="lines+markers",
+                name=stage,
+                line={"color": color, "dash": dash},
+                marker={"color": color, "symbol": symbol, "size": 9},
+                customdata=group.select(
+                    "source_slices",
+                    "report_status",
+                    "is_last_completed_level",
+                    "per_level_candidate_limit",
+                ).to_numpy(),
+                hovertemplate=(
+                    f"{stage}<br>Level=%{{x}}<br>Count=%{{y}}"
+                    "<br>Source slices=%{customdata[0]}"
+                    "<br>Report status=%{customdata[1]}"
+                    "<br>Last completed=%{customdata[2]}"
+                    "<br>Per-level limit=%{customdata[3]}<extra></extra>"
+                ),
+            ),
+            row=1,
+            col=1,
+        )
+    if not funnel.height:
+        figure.add_annotation(
+            text="No completed lattice levels",
+            showarrow=False,
+            row=1,
+            col=1,
+        )
+
+    if cardinality.height:
+        figure.add_trace(
+            go.Bar(
+                x=cardinality["cardinality"].to_list(),
+                y=cardinality["feature"].to_list(),
+                orientation="h",
+                name="Cardinality",
+                marker={
+                    "color": [
+                        "#e45756" if over_limit else "#4c78a8"
+                        for over_limit in cardinality["over_limit"].to_list()
+                    ],
+                    "pattern": {
+                        "shape": [
+                            "/" if over_limit else ""
+                            for over_limit in cardinality[
+                                "over_limit"
+                            ].to_list()
+                        ]
+                    },
+                },
+                customdata=cardinality.select(
+                    "dtype", "max_feature_cardinality", "over_limit"
+                ).to_numpy(),
+                hovertemplate=(
+                    "%{y}<br>Cardinality=%{x}<br>Dtype=%{customdata[0]}"
+                    "<br>Active limit=%{customdata[1]}"
+                    "<br>Over limit=%{customdata[2]}<extra></extra>"
+                ),
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+    else:
+        figure.add_annotation(
+            text="No source features",
+            showarrow=False,
+            row=2,
+            col=1,
+        )
+
+    summary_row = summary.row(0, named=True)
+    if not summary_row["exhaustive"] and summary_row["last_completed_level"]:
+        figure.add_vline(
+            x=summary_row["last_completed_level"],
+            line_color="#e45756",
+            line_dash="dot",
+            annotation_text="Last completed level",
+            row=1,
+            col=1,
+        )
+    if cardinality.height and cardinality["over_limit"].any():
+        figure.add_vline(
+            x=summary_row["max_feature_cardinality"],
+            line_color="#e45756",
+            line_dash="dot",
+            row=2,
+            col=1,
+        )
+
+    encoded = summary_row["encoded_feature_count"]
+    encoded_label = "unavailable" if encoded is None else str(encoded)
+    copies = " → ".join(summary_row["copy_boundaries"]) or "none"
+    warnings = ", ".join(summary_row["warning_codes"]) or "none"
+    termination = summary_row["termination_reason"] or "none"
+    figure.update_layout(
+        title=f"Ginsu search profile: {summary_row['status']}",
+        template="plotly_white",
+        height=max(680, min(2_200, 22 * cardinality.height + 520)),
+        meta=summary_row,
+        annotations=[
+            *list(figure.layout.annotations),
+            {
+                "text": (
+                    f"Backend: {summary_row['backend']} "
+                    f"(Numba used: {summary_row['numba_used']}) · "
+                    f"Input: {summary_row['input_kind']}, "
+                    f"{summary_row['row_count']} rows, "
+                    f"{summary_row['feature_count']} features, "
+                    f"{encoded_label} encoded · "
+                    f"Total elapsed: {summary_row['elapsed_seconds']:.4g}s"
+                ),
+                "showarrow": False,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0,
+                "y": 1.14,
+                "xanchor": "left",
+            },
+            {
+                "text": (
+                    f"Copies: {copies} · Warnings: {warnings} · "
+                    f"Termination: {termination}. Total timing only; stage "
+                    "timing and peak memory were not recorded."
+                ),
+                "showarrow": False,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0,
+                "y": 1.09,
+                "xanchor": "left",
+            },
+            {
+                "text": "Execution diagnostics only; not model-quality evidence.",
+                "showarrow": False,
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0,
+                "y": -0.12,
+                "xanchor": "left",
+            },
+        ],
+    )
+    figure.update_xaxes(title_text="Lattice level", dtick=1, row=1, col=1)
+    figure.update_yaxes(title_text="Candidate count", row=1, col=1)
+    figure.update_xaxes(title_text="Distinct values", row=2, col=1)
+    figure.update_yaxes(
+        title_text="Source feature", autorange="reversed", row=2, col=1
+    )
+    return figure
 
 
 def _plot_comparison_dumbbell(

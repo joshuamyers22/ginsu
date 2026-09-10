@@ -53,6 +53,9 @@ after the pre-1.0 API is established.
 - Bounded Polars-native comparison dumbbell and common-reference membership
   migration data, with optional Plotly renderers that retain unmatched and
   incompatible outcomes.
+- Bounded Polars-native search funnel, feature-cardinality, and execution
+  summary data with an optional Plotly profile that retains early termination,
+  resource limits, backend, and copy-boundary evidence.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed
