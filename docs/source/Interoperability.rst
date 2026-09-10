@@ -59,7 +59,9 @@ Copy policy
 Conversions from external producers may allocate or cast unsupported Arrow
 representations. Passing ``allow_copy=False`` to the internal normalization
 boundary is therefore deliberately conservative and accepts only an existing
-Polars DataFrame. Public copy diagnostics will be added with ``SearchReport``.
+Polars DataFrame. ``SearchReport.copy_boundaries`` records the observed
+producer-to-Polars and internal engine-conversion boundaries for each fit; it
+does not claim that every boundary necessarily allocated.
 
 Membership
 ----------

@@ -13,6 +13,7 @@ check:
 	uv run --frozen mypy
 	uv run --frozen pytest
 	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E docs/source docs/build
+	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E -b doctest docs/source docs/build/doctest
 
 typecheck:
 	uv run --frozen mypy
@@ -26,6 +27,9 @@ benchmark:
 
 doc:
 	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E docs/source docs/build
+
+doctest:
+	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E -b doctest docs/source docs/build/doctest
 
 notebook:
 	uv run --frozen --extra notebooks --extra plot jupyter notebook

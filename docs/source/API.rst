@@ -1,6 +1,36 @@
 API reference
 =============
 
+Fitted estimator outputs
+------------------------
+
+``Slicefinder.fit`` exposes three canonical Polars result tables:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Attribute
+     - Contract
+   * - ``slices_``
+     - One row per ranked rule, keyed by stable ``__ginsu_id``, with the
+       display rule and nullable predicate-value columns.
+   * - ``slice_statistics_``
+     - Discovery score, support, observed loss summaries, lift, excess error,
+       and predicate count in matching rank order.
+   * - ``predicates_``
+     - Long-form, typed predicate records keyed by stable slice ID.
+
+``top_slices_`` and ``top_slices_statistics_`` remain legacy positional
+representations. New integrations should use the canonical tables and
+``membership_frame``. Table-producing APIs return Polars even when their input
+originated in pandas or PyArrow; NumPy input preserves ndarray output for
+``transform`` and ``get_slice``.
+
+Stable IDs identify canonical rules, not rows or empirical memberships. Supply
+an explicit unique row identifier to ``membership_frame`` when positional row
+identity is insufficient.
+
 Core estimator
 --------------
 

@@ -15,8 +15,9 @@ Technology.
 ------------------
 
 Given an input dataset ``X`` and a model error vector ``errors``,
-Ginsu finds the top slices in ``X`` that identify where an ML model
-performs significantly worse.
+Ginsu finds the top slices in ``X`` where an ML model has elevated observed
+loss. Discovery scores rank descriptive patterns; they are not statistical
+significance tests.
 
 You can use Ginsu as follows:
 
@@ -128,6 +129,10 @@ clean checkout can execute them without downloading data:
 
 1. Leakage-safe classification, fixed-rule validation, diversity, and plots
 2. Regression model comparison, stability, artifacts, and search diagnostics
+
+See the `migration guide <docs/source/Migration.rst>`__ for deliberate moves
+from Sliceline, pandas-oriented code, legacy result attributes, or NumPy-only
+workflows.
 
 🛠 Installation
 ---------------

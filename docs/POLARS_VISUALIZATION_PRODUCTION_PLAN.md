@@ -49,7 +49,8 @@ The two maintained notebooks are migrated to deterministic offline Polars
 workflows with disjoint model-training, discovery, and validation partitions;
 their dedicated execution environment excludes pandas. Overlap-adjusted
 attribution, validation/stability-status deltas, structured time-window
-metadata, migration guides, and release hardening remain open.
+metadata and release hardening remain open. Sliceline, pandas-oriented, and
+NumPy migration guides plus a consolidated limitations reference are complete.
 
 ## 1. Executive summary
 
@@ -1246,6 +1247,10 @@ Acceptance gate:
   established by evidence.
 
 ### Phase 8 — Notebook and documentation migration
+
+Status: complete as of 2026-09-10. Maintained notebooks, the isolated producer
+example, migration guides, limitations reference, and executable documentation
+gate satisfy this phase's acceptance criteria.
 
 Deliverables:
 

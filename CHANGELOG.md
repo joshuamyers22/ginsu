@@ -62,6 +62,9 @@ after the pre-1.0 API is established.
 - Deterministic offline Polars notebook tutorials with disjoint model-training,
   slice-discovery, and fixed-rule-validation partitions, plus a pandas-free
   notebook execution gate and dedicated compatibility dependencies.
+- Sliceline, pandas, and NumPy migration guidance; an explicit limitations
+  reference; canonical fitted-output documentation; and executable documentation
+  examples in the quality gate.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed
@@ -74,6 +77,8 @@ after the pre-1.0 API is established.
   release authority and trusted-publisher configuration.
 - Made the performance target execute both calibrated benchmarks and
   performance-marked resource/parity checks.
+- Corrected inherited estimator documentation that implied minimum support or
+  discovery ranking established statistical significance.
 
 ### Fixed
 

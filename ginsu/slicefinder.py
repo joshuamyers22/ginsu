@@ -105,13 +105,13 @@ def _warn_numba_not_available() -> None:
 
 
 class Slicefinder(BaseEstimator, TransformerMixin):
-    """Slicefinder class.
+    """Find high-loss subpopulations in categorical feature data.
 
-    SliceLine is a fast, linear-algebra-based slice finding for ML Model Debugging.
-
-    Given an input dataset (`X`) and a model error vector (`errors`), SliceLine finds
-    the `k` slices in `X` that identify where the model performs significantly worse.
-    A slice is a subspace of `X` defined by one or more predicates.
+    Given an input dataset (``X``) and one observed model-loss value per row,
+    Ginsu returns the highest-scoring slices where loss is elevated. A slice
+    is a subpopulation defined by one or more equality predicates. Discovery
+    scores are descriptive ranking values, not tests of statistical
+    significance.
 
     The maximal dimension of this subspace is controlled by `max_l`.
 
@@ -142,9 +142,10 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         In other words: the maximum number of predicate to define a slice.
 
     min_sup: int or float, default=10
-        Minimum support threshold. Inspired by frequent itemset mining,
-        it ensures statistical significance. If `min_sup` is a float (0 < `min_sup` < 1),
-        it represents the faction of the input dataset (`X`).
+        Minimum support threshold. An integer is a row count. A float in
+        ``(0, 1)`` is a fraction of the discovery rows and is rounded upward.
+        This threshold excludes small candidates; it does not establish
+        statistical significance.
 
     verbose: bool, default=True
         Controls the verbosity.
@@ -168,21 +169,27 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
     Attributes
     ----------
-    top_slices: np.ndarray of shape (_n_features_out, number of columns of the input dataset)
-        The `_n_features_out` slices with the highest score.
-        `None` values in slices represent unused column in the slice.
-
-    average_error: float
-        Mean value of the input error.
-
-    top_slices_statistics: list of dict of length `len(top_slices_)`
-        The statistics of the slices found sorted by slice's scores.
-        For each slice, the following statistics are stored:
-        - slice_score: the score of the slice (defined in `_score` method)
-        - sum_slice_error: the sum of all the errors in the slice
-        - max_slice_error: the maximum of all errors in the slice
-        - slice_size: the number of elements in the slice
-        - slice_average_error: the average error in the slice (sum_slice_error / slice_size)
+    slices\\_ : polars.DataFrame
+        Ranked rules with stable ``__ginsu_id`` values, display rules, and one
+        nullable predicate-value column per input feature.
+    slice_statistics\\_ : polars.DataFrame
+        Canonical discovery metrics, including rank, score, support, observed
+        error summaries, error lift, excess error, and predicate count.
+    predicates\\_ : polars.DataFrame
+        Long-form predicate table keyed by stable slice ID.
+    average_error\\_ : float
+        Mean discovery loss.
+    feature_names_in\\_ : numpy.ndarray
+        Ordered feature names captured during fitting.
+    input_kind\\_ : str
+        Normalized producer kind: ``polars``, ``numpy``, ``arrow``, or
+        ``interchange``.
+    top_slices\\_ : numpy.ndarray
+        Legacy positional rule representation. ``None`` means that a feature
+        is unused by a rule. Prefer ``slices_`` for application code.
+    top_slices_statistics\\_ : list of dict
+        Legacy list-of-dictionaries discovery statistics. Prefer
+        ``slice_statistics_`` for application code.
 
     search_report\\_ : SearchReport
         Immutable execution evidence. Limit-terminated and failed searches
@@ -447,16 +454,18 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         )
 
     def fit(self, X: ArrayLike, errors: ArrayLike) -> Slicefinder:
-        """Search for slice(s) on `X` based on `errors`.
+        """Search for slices on ``X`` using one observed loss per row.
 
         Parameters
         ----------
         X: array-like of shape (n_samples, n_features)
-            Training data, where `n_samples` is the number of samples
-            and `n_features` is the number of features.
+            Categorical or pre-discretized discovery features. Named inputs
+            preserve their ordered schema; NumPy-like inputs receive generated
+            ``column_<index>`` names.
 
         errors: array-like of shape (n_samples, )
-            Errors of a machine learning model.
+            Finite, nonnegative per-row model losses. At least one value must
+            be positive.
 
         Returns
         -------

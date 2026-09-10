@@ -72,6 +72,9 @@ In order to build the documentation locally, run:
 $ make doc
 ```
 
+Run executable documentation examples with `make doctest`. Both the HTML build
+and documentation examples are included in `make check`.
+
 ## Adding a release note
 
 Add user-visible changes to the `Unreleased` section of
