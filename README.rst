@@ -122,10 +122,12 @@ compatible pandas and PyArrow tables enter through public Arrow or dataframe
 interchange protocols and produce Polars outputs. Ginsu production code does
 not import pandas.
 
-The ``notebooks/`` directory contains more thorough tutorials:
+The ``notebooks/`` directory contains deterministic, offline Polars tutorials.
+They use synthetic Titanic-style and California-Housing-style fixtures so a
+clean checkout can execute them without downloading data:
 
-1. Implementing Ginsu on Titanic dataset
-2. Implementing Ginsu on California housing dataset
+1. Leakage-safe classification, fixed-rule validation, diversity, and plots
+2. Regression model comparison, stability, artifacts, and search diagnostics
 
 🛠 Installation
 ---------------

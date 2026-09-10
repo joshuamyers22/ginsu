@@ -317,7 +317,9 @@ def _validate_level(level: SearchLevelReport, *, previous_level: int) -> None:
         level.candidates_after_pruning > level.compatible_pairs
     ):
         raise ValueError("post-pruning count exceeds compatible pairs.")
-    if level.evaluated_candidates > level.candidates_after_pruning:
+    if level.level > 1 and (
+        level.evaluated_candidates > level.candidates_after_pruning
+    ):
         raise ValueError(
             "evaluated candidate count exceeds post-pruning count."
         )

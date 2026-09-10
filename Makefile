@@ -28,7 +28,7 @@ doc:
 	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E docs/source docs/build
 
 notebook:
-	uv run --frozen jupyter notebook
+	uv run --frozen --extra notebooks --extra plot jupyter notebook
 
 execute-notebooks:
-	uv run --frozen jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb --ExecutePreprocessor.timeout=600
+	uv run --frozen --extra notebooks --extra plot jupyter nbconvert --execute --to notebook --output-dir docs/build/notebooks notebooks/*.ipynb --ExecutePreprocessor.timeout=600

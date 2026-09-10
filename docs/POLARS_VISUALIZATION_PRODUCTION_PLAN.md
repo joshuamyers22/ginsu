@@ -45,8 +45,11 @@ source cardinality, backend/copy evidence, active limits, deterministic
 per-stage timing, opt-in labeled boundary-memory observations, and early
 termination. Artifact version 2 carries that evidence while the reader
 migrates legacy version 1 reports without inventing measurements.
-Overlap-adjusted attribution, validation/stability-status deltas, structured
-time-window metadata, notebook migration, and release hardening remain open.
+The two maintained notebooks are migrated to deterministic offline Polars
+workflows with disjoint model-training, discovery, and validation partitions;
+their dedicated execution environment excludes pandas. Overlap-adjusted
+attribution, validation/stability-status deltas, structured time-window
+metadata, migration guides, and release hardening remain open.
 
 ## 1. Executive summary
 

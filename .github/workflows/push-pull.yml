@@ -32,10 +32,12 @@ jobs:
         run: python -m pip install uv
       - name: Install core and development dependencies
         if: ${{ !matrix.numba }}
-        run: uv sync --frozen --extra dev --extra plot
+        run: uv sync --frozen --extra dev --extra compat --extra plot
       - name: Install optimized dependencies
         if: matrix.numba
-        run: uv sync --frozen --extra dev --extra optimized --extra plot
+        run: >-
+          uv sync --frozen --extra dev --extra compat --extra optimized
+          --extra plot
       - name: Verify Numba availability
         env:
           EXPECTED_NUMBA: ${{ matrix.numba }}
@@ -82,3 +84,26 @@ jobs:
           assert importlib.util.find_spec('pandas') is None;
           assert importlib.util.find_spec('plotly') is None;
           assert importlib.util.find_spec('sliceline') is None"
+
+  notebooks:
+    name: Offline Polars notebook smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install uv
+      - name: Verify compatibility libraries are absent
+        run: >-
+          uv run --frozen --extra notebooks --extra plot python -c
+          "import importlib.util;
+          assert importlib.util.find_spec('pandas') is None;
+          assert importlib.util.find_spec('pyarrow') is None"
+      - name: Execute offline notebooks
+        run: make execute-notebooks

@@ -11,6 +11,37 @@ Arrow PyCapsule or dataframe-interchange protocols. Ginsu does not import
 pandas. These external table producers return Polars outputs by default, so
 the behavior is independent of the producer library.
 
+Focused producer example
+------------------------
+
+Pandas and PyArrow belong at the caller boundary, not in the primary notebooks
+or Ginsu implementation. The same finder accepts both producers:
+
+.. code:: python
+
+   import pandas as pd
+   import pyarrow as pa
+
+   from ginsu import Slicefinder
+
+   arrow_frame = pa.table(
+       {"region": ["east", "east", "west", "west"]}
+   )
+   pandas_frame = arrow_frame.to_pandas(types_mapper=pd.ArrowDtype)
+   errors = [4.0, 3.0, 1.0, 1.0]
+
+   arrow_finder = Slicefinder(min_sup=1, verbose=False).fit(
+       arrow_frame, errors
+   )
+   pandas_finder = Slicefinder(min_sup=1, verbose=False).fit(
+       pandas_frame, errors
+   )
+
+   assert arrow_finder.slices_.equals(pandas_finder.slices_)
+
+This path is exercised in the dedicated compatibility test environment. It
+does not introduce a pandas-specific execution branch.
+
 Schema contract
 ---------------
 

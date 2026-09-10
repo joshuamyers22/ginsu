@@ -96,8 +96,10 @@ $ uv run pytest tests/
 
 **Notebook tests**
 
-You don't have to worry too much about these, as we only check them before each release.
-If you break them because you changed some code, then it's probably because the notebooks have to be modified, not the other way around.
+The maintained notebooks are deterministic, offline, and part of the push
+gate. They execute in a dedicated environment without pandas. Generated
+notebooks are written under the ignored `docs/build/notebooks` directory;
+the checked-in sources keep outputs cleared.
 
 ```sh
 $ make execute-notebooks

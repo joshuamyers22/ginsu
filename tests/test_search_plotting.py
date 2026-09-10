@@ -65,6 +65,34 @@ def test_search_funnel_data_preserves_completed_level_evidence(search_report):
     assert level_two["is_last_completed_level"].all()
 
 
+def test_level_one_can_prune_after_evaluating_literals(search_report):
+    level_one = replace(
+        search_report.levels[0],
+        source_slices=10,
+        candidates_after_pruning=7,
+        evaluated_candidates=10,
+        valid_candidates=3,
+    )
+    report = replace(
+        search_report,
+        levels=(level_one, *search_report.levels[1:]),
+    )
+
+    data = search_funnel_data(report)
+
+    level_one_data = data.filter(pl.col("level") == 1)
+    assert (
+        level_one_data.filter(pl.col("stage") == "After pruning")["count"][0]
+        == 7
+    )
+    assert (
+        level_one_data.filter(pl.col("stage") == "Evaluated candidates")[
+            "count"
+        ][0]
+        == 10
+    )
+
+
 def test_search_cardinality_and_summary_are_typed(search_report):
     cardinality = search_cardinality_data(search_report)
     timing = search_timing_data(search_report)

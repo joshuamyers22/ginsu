@@ -59,6 +59,9 @@ after the pre-1.0 API is established.
 - Deterministic per-stage search timing and opt-in labeled boundary-memory
   observations, carried by artifact format v2 and rendered in the bounded
   search profile; legacy artifact v1 remains readable without invented data.
+- Deterministic offline Polars notebook tutorials with disjoint model-training,
+  slice-discovery, and fixed-rule-validation partitions, plus a pandas-free
+  notebook execution gate and dedicated compatibility dependencies.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed
@@ -77,3 +80,5 @@ after the pre-1.0 API is established.
 - Reject negative and all-zero error vectors before scoring.
 - Round fractional minimum support upward with a minimum of one row.
 - Reject reordered or missing named columns before membership evaluation.
+- Permit level-one search reports where literal evaluation precedes pruning
+  for the next lattice join.
