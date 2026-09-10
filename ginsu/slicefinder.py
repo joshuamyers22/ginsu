@@ -8,6 +8,7 @@ import logging
 import math
 import warnings
 from collections.abc import Callable
+from numbers import Integral
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
@@ -28,6 +29,8 @@ from ginsu.diagnostics import (
     SearchLimitError,
     SearchLimits,
     SearchReport,
+    SearchStageReport,
+    SearchStageStatus,
     SearchStatus,
 )
 
@@ -154,6 +157,15 @@ class Slicefinder(BaseEstimator, TransformerMixin):
     clock: callable, default=time.perf_counter
         Injected monotonic clock used for elapsed-time limits and diagnostics.
 
+    memory_sampler: callable or None, default=None
+        Optional caller-supplied function returning a nonnegative byte count at
+        search-stage boundaries. Samples are observations, not allocations
+        attributed to Ginsu.
+
+    memory_measurement: str or None, default=None
+        Caller-declared semantics for ``memory_sampler`` such as
+        ``"process_peak_rss_bytes"``. Required exactly when a sampler is set.
+
     Attributes
     ----------
     top_slices: np.ndarray of shape (_n_features_out, number of columns of the input dataset)
@@ -192,6 +204,8 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         verbose: bool = True,
         limits: SearchLimits | None = None,
         clock: Callable[[], float] = perf_counter,
+        memory_sampler: Callable[[], int] | None = None,
+        memory_measurement: str | None = None,
     ) -> None:
         self.alpha = alpha
         self.k = k
@@ -200,6 +214,8 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         self.verbose = verbose
         self.limits = limits
         self.clock = clock
+        self.memory_sampler = memory_sampler
+        self.memory_measurement = memory_measurement
 
         self._one_hot_encoder: OneHotEncoder | None = None
         self._top_slices_enc: sp.csr_matrix | None = None
@@ -243,6 +259,23 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             raise TypeError("limits must be a SearchLimits instance or None.")
         if not callable(self.clock):
             raise TypeError("clock must be callable.")
+        if self.memory_sampler is not None and not callable(
+            self.memory_sampler
+        ):
+            raise TypeError("memory_sampler must be callable or None.")
+        if (self.memory_sampler is None) != (self.memory_measurement is None):
+            raise ValueError(
+                "memory_sampler and memory_measurement must be provided together."
+            )
+        if self.memory_measurement is not None and (
+            not isinstance(self.memory_measurement, str)
+            or not self.memory_measurement.strip()
+            or len(self.memory_measurement) > 200
+        ):
+            raise ValueError(
+                "memory_measurement must be a non-empty string of at most 200 "
+                "characters."
+            )
 
     def _clear_fitted_state(self) -> None:
         """Remove prior results before starting a new fit."""
@@ -276,11 +309,110 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             code, observed=observed, limit=limit, stage=stage
         )
 
+    def _read_memory_sample(self) -> int | None:
+        if self.memory_sampler is None:
+            return None
+        value: Any = self.memory_sampler()
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, Integral)
+            or value < 0
+        ):
+            raise ValueError(
+                "memory_sampler must return a nonnegative integer byte count."
+            )
+        return int(value)
+
+    def _initialize_search_diagnostics(
+        self, started_at: float, *, stage: str
+    ) -> None:
+        initial_memory = self._read_memory_sample()
+        self._search_stages: list[SearchStageReport] = []
+        self._active_search_stage: str | None = stage
+        self._active_stage_started_at = started_at
+        self._active_stage_memory_start = initial_memory
+        self._diagnostic_last_at = started_at
+        self._diagnostic_last_memory = initial_memory
+        self._observed_peak_memory_bytes = initial_memory
+
+    def _finish_active_search_stage(
+        self,
+        status: SearchStageStatus,
+        *,
+        check_elapsed: bool = True,
+        sample_memory: bool = True,
+    ) -> None:
+        if self._active_search_stage is None:
+            return
+        finished_at = self.clock()
+        if finished_at < self._active_stage_started_at:
+            raise ValueError("clock must be monotonic.")
+        memory_end = self._read_memory_sample() if sample_memory else None
+        observed = [
+            value
+            for value in (self._active_stage_memory_start, memory_end)
+            if value is not None
+        ]
+        stage_peak = max(observed) if observed else None
+        report = SearchStageReport(
+            stage=self._active_search_stage,
+            status=status,
+            elapsed_seconds=finished_at - self._active_stage_started_at,
+            memory_start_bytes=self._active_stage_memory_start,
+            memory_end_bytes=memory_end,
+            observed_peak_memory_bytes=stage_peak,
+        )
+        self._search_stages.append(report)
+        if stage_peak is not None:
+            current_peak = self._observed_peak_memory_bytes
+            self._observed_peak_memory_bytes = (
+                stage_peak
+                if current_peak is None
+                else max(current_peak, stage_peak)
+            )
+        self._diagnostic_last_at = finished_at
+        self._diagnostic_last_memory = memory_end
+        self._active_search_stage = None
+        if check_elapsed:
+            limit = self._active_search_limits.max_search_seconds
+            elapsed = finished_at - self._search_started_at
+            if limit is not None and elapsed > limit:
+                self._raise_limit(
+                    "GINSU_MAX_SEARCH_SECONDS",
+                    observed=elapsed,
+                    limit=limit,
+                    stage=report.stage.replace("_", " "),
+                )
+
+    def _transition_search_stage(self, stage: str) -> None:
+        self._finish_active_search_stage("complete")
+        self._active_search_stage = stage
+        self._active_stage_started_at = self._diagnostic_last_at
+        self._active_stage_memory_start = self._diagnostic_last_memory
+        if self._active_stage_memory_start is not None:
+            current_peak = self._observed_peak_memory_bytes
+            self._observed_peak_memory_bytes = (
+                self._active_stage_memory_start
+                if current_peak is None
+                else max(current_peak, self._active_stage_memory_start)
+            )
+
+    def _terminate_active_search_stage(self) -> None:
+        try:
+            self._finish_active_search_stage(
+                "terminated", check_elapsed=False, sample_memory=False
+            )
+        except Exception:
+            self._active_search_stage = None
+
     def _check_elapsed(self, stage: str) -> None:
         limit = self._active_search_limits.max_search_seconds
         if limit is None:
             return
-        elapsed = self.clock() - self._search_started_at
+        observed_at = self.clock()
+        if observed_at < self._search_started_at:
+            raise ValueError("clock must be monotonic.")
+        elapsed = observed_at - self._search_started_at
         if elapsed > limit:
             self._raise_limit(
                 "GINSU_MAX_SEARCH_SECONDS",
@@ -335,6 +467,11 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         self._check_params()
         started_at = self.clock()
         active_limits = self.limits or SearchLimits()
+        self._active_search_limits = active_limits
+        self._search_started_at = started_at
+        self._initialize_search_diagnostics(
+            started_at, stage="input_normalization"
+        )
 
         # Validate and normalize inputs before deriving any fitted state.
         normalized = normalize_frame(X)
@@ -352,8 +489,6 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             + ["polars->numpy", "numpy->scipy-csr"]
         )
 
-        self._active_search_limits = active_limits
-        self._search_started_at = started_at
         self._search_levels: list[SearchLevelReport] = []
         self._encoded_feature_count: int | None = None
         self._numba_used = False
@@ -376,10 +511,13 @@ class Slicefinder(BaseEstimator, TransformerMixin):
                 encoded_feature_count=self._encoded_feature_count,
                 copy_boundaries=copy_boundaries,
                 levels=tuple(self._search_levels),
-                elapsed_seconds=max(0.0, self.clock() - started_at),
+                elapsed_seconds=self._diagnostic_last_at - started_at,
                 limits=active_limits,
                 warning_codes=warning_codes,
                 termination_reason=reason,
+                stages=tuple(self._search_stages),
+                memory_measurement=self.memory_measurement,
+                observed_peak_memory_bytes=(self._observed_peak_memory_bytes),
             )
 
         try:
@@ -394,6 +532,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
                             stage=f"feature {name!r}",
                         )
 
+            self._transition_search_stage("engine_conversion")
             X_array = to_engine_array(normalized.frame)
             normalized_errors = normalize_errors(
                 errors, expected_length=normalized.frame.height
@@ -407,11 +546,15 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             else:
                 self._min_sup_actual = self.min_sup
 
+            self._transition_search_stage("one_hot_encoding")
             self._search_slices(
                 X_array, normalized_errors, started_at=started_at
             )
+            self._transition_search_stage("result_materialization")
             self._build_result_frames(normalized.frame)
+            self._finish_active_search_stage("complete")
         except SearchLimitError as error:
+            self._terminate_active_search_stage()
             self._clear_fitted_state()
             self.search_report_ = build_report(
                 "limit_reached",
@@ -420,6 +563,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             )
             raise
         except Exception as error:
+            self._terminate_active_search_stage()
             self._clear_fitted_state()
             self.search_report_ = build_report("failed", reason=str(error))
             raise
@@ -1342,6 +1486,10 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         self._search_started_at = (
             self.clock() if started_at is None else started_at
         )
+        if not hasattr(self, "_active_search_stage"):
+            self._initialize_search_diagnostics(
+                self._search_started_at, stage="one_hot_encoding"
+            )
         self._search_levels = []
         self._generated_candidate_total = 0
         self._encoded_feature_count = None
@@ -1368,7 +1516,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
                 limit=encoded_limit,
                 stage="one-hot encoding",
             )
-        self._check_elapsed("one-hot encoding")
+        self._transition_search_stage("level_1_evaluation")
         self.average_error_ = float(np.mean(errors))
         slices, statistics = self._create_and_score_basic_slices(
             x_encoded,
@@ -1422,6 +1570,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
             and (level < min_condition)
         ):
             level += 1
+            self._transition_search_stage(f"level_{level}_join")
 
             # enumerate candidate join pairs, including size/error pruning
             slices, statistics = self._get_pruned_s_r(slices, statistics)
@@ -1437,6 +1586,7 @@ class Slicefinder(BaseEstimator, TransformerMixin):
                 feature_offset_end,
             )
             candidate_count = slices.shape[0]
+            self._transition_search_stage(f"level_{level}_evaluation")
 
             logger.debug("Level %i:", level)
             logger.debug(
@@ -1447,7 +1597,6 @@ class Slicefinder(BaseEstimator, TransformerMixin):
 
             # extract and evaluate candidate slices
             statistics = self._eval_slice(x_encoded, errors, slices, level)
-            self._check_elapsed(f"level {level} evaluation")
 
             # maintain top-k after evaluation
             top_k_slices, top_k_statistics = self._maintain_top_k(

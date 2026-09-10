@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-09-10
+- Amended by: ADR 0014
 
 ## Context
 
@@ -47,6 +48,6 @@ that stage timing and peak memory were not recorded.
   failures.
 - Level-one pair counts cannot be mistaken for observed zero pair generation.
 - Plotly remains lazy, while custom reporting can consume the Polars tables.
-- Per-stage timing and optional peak-memory instrumentation remain a future
-  ``SearchReport`` contract change.
+- ADR 0014 subsequently adds a separately bounded timing/memory table and
+  panel without changing these funnel or cardinality semantics.
 - The profile is execution evidence, not model-performance evidence.

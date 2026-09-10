@@ -163,7 +163,7 @@ def test_unrelated_discretization_plan_cannot_be_attached(analysis_fixture):
 @pytest.mark.parametrize(
     "field,value,code",
     [
-        ("artifact_version", "2.0.0", "GINSU_ARTIFACT_VERSION"),
+        ("artifact_version", "3.0.0", "GINSU_ARTIFACT_VERSION"),
         ("artifact_format", "other", "GINSU_ARTIFACT_FORMAT"),
         (
             "canonicalization_version",
@@ -185,6 +185,88 @@ def test_unknown_manifest_identity_fails_closed(
         SliceAnalysis.read(artifact)
 
     assert raised.value.code == code
+
+
+def test_version_one_artifact_migrates_without_timing_evidence(
+    tmp_path, analysis_fixture
+):
+    analysis, _ = analysis_fixture
+    artifact = analysis.write(tmp_path / "analysis-v1")
+    manifest = _read_manifest(artifact)
+    manifest["artifact_version"] = "1.0.0"
+    del manifest["search_report"]["stages"]
+    del manifest["search_report"]["memory_measurement"]
+    del manifest["search_report"]["observed_peak_memory_bytes"]
+    _write_manifest(artifact, manifest)
+
+    restored = SliceAnalysis.read(artifact)
+
+    assert restored.search_report.stages == ()
+    assert restored.search_report.memory_measurement is None
+    assert restored.search_report.observed_peak_memory_bytes is None
+
+
+def test_version_two_round_trip_preserves_memory_diagnostics(tmp_path):
+    ticks = iter(float(value) for value in range(6))
+    memory = iter((100, 110, 120, 130, 140, 150))
+    frame = pl.DataFrame({"segment": ["a", "a", "b", "b"]})
+    finder = Slicefinder(
+        min_sup=1,
+        verbose=False,
+        clock=lambda: next(ticks),
+        memory_sampler=lambda: next(memory),
+        memory_measurement="test_boundary_bytes",
+    ).fit(frame, [2.0, 2.0, 1.0, 1.0])
+    analysis = SliceAnalysis.from_finder(
+        finder, dataset_fingerprint="sha256:memory-diagnostics"
+    )
+
+    artifact = analysis.write(tmp_path / "analysis-v2")
+    restored = SliceAnalysis.read(artifact)
+
+    assert _read_manifest(artifact)["artifact_version"] == "2.0.0"
+    assert restored.search_report == analysis.search_report
+    assert restored.search_report.memory_measurement == "test_boundary_bytes"
+    assert restored.search_report.observed_peak_memory_bytes == 150
+
+
+def test_artifact_report_version_schemas_remain_closed(
+    tmp_path, analysis_fixture
+):
+    analysis, _ = analysis_fixture
+    missing_v2 = analysis.write(tmp_path / "missing-v2")
+    manifest = _read_manifest(missing_v2)
+    del manifest["search_report"]["stages"]
+    _write_manifest(missing_v2, manifest)
+    with pytest.raises(ArtifactError) as raised:
+        SliceAnalysis.read(missing_v2)
+    assert raised.value.code == "GINSU_ARTIFACT_SCHEMA"
+
+    extra_v1 = analysis.write(tmp_path / "extra-v1")
+    manifest = _read_manifest(extra_v1)
+    manifest["artifact_version"] = "1.0.0"
+    del manifest["search_report"]["memory_measurement"]
+    del manifest["search_report"]["observed_peak_memory_bytes"]
+    _write_manifest(extra_v1, manifest)
+    with pytest.raises(ArtifactError) as raised:
+        SliceAnalysis.read(extra_v1)
+    assert raised.value.code == "GINSU_ARTIFACT_SCHEMA"
+
+
+def test_version_two_rejects_inconsistent_memory_evidence(
+    tmp_path, analysis_fixture
+):
+    analysis, _ = analysis_fixture
+    artifact = analysis.write(tmp_path / "invalid-memory")
+    manifest = _read_manifest(artifact)
+    manifest["search_report"]["memory_measurement"] = "test_bytes"
+    manifest["search_report"]["observed_peak_memory_bytes"] = 1
+    _write_manifest(artifact, manifest)
+
+    with pytest.raises(ArtifactError) as raised:
+        SliceAnalysis.read(artifact)
+
+    assert raised.value.code == "GINSU_ARTIFACT_SCHEMA"
 
 
 def test_hash_mismatch_and_unexpected_file_fail_closed(

@@ -56,6 +56,9 @@ after the pre-1.0 API is established.
 - Bounded Polars-native search funnel, feature-cardinality, and execution
   summary data with an optional Plotly profile that retains early termination,
   resource limits, backend, and copy-boundary evidence.
+- Deterministic per-stage search timing and opt-in labeled boundary-memory
+  observations, carried by artifact format v2 and rendered in the bounded
+  search profile; legacy artifact v1 remains readable without invented data.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed

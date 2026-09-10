@@ -9,15 +9,18 @@ from ginsu import (
     AnalysisLimitError,
     SearchLimitError,
     SearchLimits,
+    SearchStageReport,
     Slicefinder,
 )
 from ginsu._search_plot_data import (
     SEARCH_CARDINALITY_SCHEMA,
     SEARCH_FUNNEL_SCHEMA,
     SEARCH_SUMMARY_SCHEMA,
+    SEARCH_TIMING_SCHEMA,
     search_cardinality_data,
     search_funnel_data,
     search_summary_data,
+    search_timing_data,
 )
 
 
@@ -64,6 +67,7 @@ def test_search_funnel_data_preserves_completed_level_evidence(search_report):
 
 def test_search_cardinality_and_summary_are_typed(search_report):
     cardinality = search_cardinality_data(search_report)
+    timing = search_timing_data(search_report)
     summary = search_summary_data(search_report)
 
     assert cardinality.schema == SEARCH_CARDINALITY_SCHEMA
@@ -71,12 +75,23 @@ def test_search_cardinality_and_summary_are_typed(search_report):
     assert cardinality["cardinality"].to_list() == [2, 2]
     assert cardinality["dtype"].to_list() == ["String", "Int64"]
     assert not cardinality["over_limit"].any()
+    assert timing.schema == SEARCH_TIMING_SCHEMA
+    assert timing["stage"].to_list() == [
+        stage.stage for stage in search_report.stages
+    ]
+    assert timing["stage_order"].to_list() == list(
+        range(len(search_report.stages))
+    )
+    assert timing["observed_peak_memory_bytes"].null_count() == timing.height
     assert summary.schema == SEARCH_SUMMARY_SCHEMA
     assert summary.height == 1
     assert summary["status"][0] == "complete"
     assert summary["exhaustive"][0]
     assert summary["completed_level_count"][0] == 2
     assert summary["last_completed_level"][0] == 2
+    assert summary["recorded_stage_count"][0] == len(search_report.stages)
+    assert summary["memory_measurement"][0] is None
+    assert summary["observed_peak_memory_bytes"][0] is None
     assert summary["copy_boundaries"][0].to_list() == [
         "polars->numpy",
         "numpy->scipy-csr",
@@ -96,6 +111,10 @@ def test_search_plot_limits_fail_before_expansion(search_report):
         search_cardinality_data(search_report, max_features=1)
     assert raised.value.code == "GINSU_MAX_SEARCH_PLOT_FEATURES"
 
+    with pytest.raises(AnalysisLimitError) as raised:
+        search_timing_data(search_report, max_stages=1)
+    assert raised.value.code == "GINSU_MAX_SEARCH_PLOT_STAGES"
+
 
 def test_search_plot_data_rejects_invalid_inputs(search_report):
     with pytest.raises(TypeError, match="SearchReport"):
@@ -104,6 +123,8 @@ def test_search_plot_data_rejects_invalid_inputs(search_report):
         search_funnel_data(search_report, max_levels=0)
     with pytest.raises(ValueError, match="positive integer"):
         search_cardinality_data(search_report, max_features=True)
+    with pytest.raises(ValueError, match="positive integer"):
+        search_timing_data(search_report, max_stages=0)
     malformed = replace(search_report, feature_count=3)
     with pytest.raises(ValueError, match="feature_count"):
         search_summary_data(malformed)
@@ -122,7 +143,7 @@ def test_search_plot_data_rejects_inconsistent_report_evidence(search_report):
         (replace(search_report, backend="gpu"), ValueError, "backend"),
         (replace(search_report, row_count=-1), ValueError, "nonnegative"),
         (
-            replace(search_report, elapsed_seconds=float("nan")),
+            replace(search_report, elapsed_seconds=float("nan"), stages=()),
             ValueError,
             "finite",
         ),
@@ -244,7 +265,8 @@ def test_search_profile_figure_has_diagnostic_semantics(search_report):
     assert figure.layout.title.text == "Ginsu search profile: complete"
     assert figure.layout.meta["status"] == "complete"
     assert figure.layout.xaxis.title.text == "Lattice level"
-    assert figure.layout.xaxis2.title.text == "Distinct values"
+    assert figure.layout.xaxis2.title.text == "Search stage"
+    assert figure.layout.xaxis3.title.text == "Distinct values"
     assert {trace.name for trace in figure.data} >= {
         "Source slices",
         "Potential pairs",
@@ -252,13 +274,65 @@ def test_search_profile_figure_has_diagnostic_semantics(search_report):
         "After pruning",
         "Evaluated candidates",
         "Valid candidates",
+        "Stage duration",
         "Cardinality",
     }
     annotation_text = " ".join(
         annotation.text for annotation in figure.layout.annotations
     )
-    assert "stage timing and peak memory were not recorded" in annotation_text
+    assert "Memory: not enabled" in annotation_text
+    assert "boundary observations" in annotation_text
     assert "not model-quality evidence" in annotation_text
+
+
+def test_search_profile_plots_declared_boundary_memory(search_report):
+    pytest.importorskip("plotly")
+    from ginsu.plotting import plot_search_report
+
+    stages = tuple(
+        SearchStageReport(
+            stage=stage.stage,
+            status=stage.status,
+            elapsed_seconds=stage.elapsed_seconds,
+            memory_start_bytes=100 + index,
+            memory_end_bytes=101 + index,
+            observed_peak_memory_bytes=101 + index,
+        )
+        for index, stage in enumerate(search_report.stages)
+    )
+    report = replace(
+        search_report,
+        stages=stages,
+        memory_measurement="test_boundary_bytes",
+        observed_peak_memory_bytes=100 + len(stages),
+    )
+
+    figure = plot_search_report(report)
+
+    memory_trace = next(
+        trace
+        for trace in figure.data
+        if trace.name == "Observed boundary memory"
+    )
+    assert list(memory_trace.y) == [101 + i for i in range(len(stages))]
+    assert figure.layout.meta["memory_measurement"] == "test_boundary_bytes"
+    annotation_text = " ".join(
+        annotation.text for annotation in figure.layout.annotations
+    )
+    assert "test_boundary_bytes" in annotation_text
+
+
+def test_search_profile_labels_legacy_report_without_stage_evidence(
+    search_report,
+):
+    pytest.importorskip("plotly")
+    from ginsu.plotting import plot_search_report
+
+    figure = plot_search_report(replace(search_report, stages=()))
+
+    assert "No per-stage timing evidence" in " ".join(
+        annotation.text for annotation in figure.layout.annotations
+    )
 
 
 def test_limit_terminated_profile_keeps_reason_and_cardinality_threshold():

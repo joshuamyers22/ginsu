@@ -41,10 +41,12 @@ foundation now implements exact/predicate/membership matching, metric and rule
 deltas, migration counts, and explicit incompatible results. Bounded comparison
 dumbbells and common-reference membership-migration views are implemented.
 The bounded search-profile view now covers completed-level candidate funnels,
-source cardinality, backend/copy evidence, active limits, total elapsed time,
-and early termination. Stage timing and peak-memory instrumentation remain
-open, as do overlap-adjusted attribution, validation/stability-status deltas,
-structured time-window metadata, notebook migration, and release hardening.
+source cardinality, backend/copy evidence, active limits, deterministic
+per-stage timing, opt-in labeled boundary-memory observations, and early
+termination. Artifact version 2 carries that evidence while the reader
+migrates legacy version 1 reports without inventing measurements.
+Overlap-adjusted attribution, validation/stability-status deltas, structured
+time-window metadata, notebook migration, and release hardening remain open.
 
 ## 1. Executive summary
 
@@ -947,8 +949,9 @@ plot_search_report(finder.search_report_)
 ```
 
 - Candidate funnel by lattice level and pruning reason.
-- Total elapsed time from the current report; stage timing and optional
-  peak-memory profiles follow a separate instrumentation contract.
+- Total elapsed time and per-stage duration from the injected monotonic clock.
+- Optional caller-labeled start/end memory observations by stage, explicitly
+  distinguished from allocation attribution and continuous peak measurement.
 - Cardinality contribution by source feature.
 - Resource-limit thresholds and the actual termination point.
 - Backend/acceleration state and copy boundaries in figure metadata/tooltips.

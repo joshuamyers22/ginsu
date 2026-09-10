@@ -185,6 +185,7 @@ Search profile
        finder.search_report_,
        max_levels=100,
        max_features=100,
+       max_stages=500,
        max_cells=10_000,
    )
 
@@ -195,13 +196,19 @@ directly, so its pair stages are unavailable rather than zero. A terminated
 search labels its last completed level and retains the exact termination reason
 and stable warning code.
 
+The middle panel shows recorded wall-clock duration for each completed or
+terminated search stage. When fit-time memory sampling was enabled, a secondary
+axis shows the largest start/end byte observation for each stage. Those values
+are boundary observations, not allocation attribution or a continuous peak
+unless the configured sampler itself reports peak-to-date values.
+
 The lower panel shows ordered source-feature cardinality and visibly marks a
 cardinality-limit breach. Backend, Numba use, normalized input size, encoded
-width, copy boundaries, total elapsed time, termination, and active limits stay
-in annotations, hover data, or figure metadata.
+width, copy boundaries, total elapsed time, termination, memory-measurement
+label, and active limits stay in annotations, hover data, or figure metadata.
 
-Level, rendered-cell, and feature bounds are checked in pure Polars plot-data
-builders before Plotly is loaded. ``SearchReport`` currently records total
-elapsed time but not per-stage timing or peak-memory samples; the figure states
-that absence rather than inferring measurements. This plot explains search
-execution and resource pressure. It is not model-quality evidence.
+Level, rendered-cell, stage, and feature bounds are checked in pure Polars
+plot-data builders before Plotly is loaded. Legacy version 1 reports label
+missing per-stage evidence explicitly rather than inferring measurements. This
+plot explains search execution and resource pressure. It is not model-quality
+evidence.

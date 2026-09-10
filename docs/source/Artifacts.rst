@@ -25,7 +25,7 @@ pickling an estimator or embedding source observations.
        limits=ArtifactLimits(),
    )
 
-Format version 1
+Format version 2
 ----------------
 
 The artifact is a directory containing canonical UTF-8 ``manifest.json`` and
@@ -36,7 +36,8 @@ table. It also records:
 
 - artifact, canonicalization, package, and algorithm versions;
 - the ordered feature schema;
-- search parameters, limits, per-level report, and termination status;
+- search parameters, limits, per-level report, termination status, per-stage
+  timing, and optional labeled boundary-memory observations;
 - a complete fitted discretization specification when supplied; and
 - caller-supplied dataset, partition, and dependency-lock fingerprints.
 
@@ -58,7 +59,7 @@ cross-table relationships that do not validate.
 The defaults allow a 1 MiB manifest, 64 MiB per table, 256 MiB total, one
 million rows per table, and 128 MiB of materialized data per table. Raising
 them is an explicit trust and resource decision. Ginsu writes Arrow IPC
-uncompressed in version 1. The reader also checks materialized size because an
+uncompressed in version 2. The reader also checks materialized size because an
 untrusted producer could still supply a compressed IPC body; callers handling
 hostile files should combine these limits with operating-system process limits.
 
@@ -68,8 +69,16 @@ destination.
 Compatibility and migration
 ---------------------------
 
-The first reader accepts exactly ``ginsu.slice-analysis`` version ``1.0.0``
-and canonicalization version 1. Unknown versions fail closed. A future format
-change must add a reviewed reader or explicit migration function with golden
-round-trip and hostile-input tests; files must not be edited ad hoc to bypass a
-version check.
+The writer emits ``ginsu.slice-analysis`` version ``2.0.0`` and
+canonicalization version 1. The reader also accepts legacy version ``1.0.0``;
+its absent stage-timing and memory fields are restored as empty or unavailable
+evidence rather than inferred values. Unknown versions fail closed. A future
+format change must add a reviewed reader or explicit migration function with
+golden round-trip and hostile-input tests; files must not be edited ad hoc to
+bypass a version check.
+
+Memory sampling is opt-in at fit time. The manifest stores only integer byte
+observations and the caller-declared measurement label, never the sampler
+callable. Values are observations at stage boundaries, not allocation
+attribution or a continuous peak unless the configured sampler itself reports
+peak-to-date values.

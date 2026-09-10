@@ -12,6 +12,7 @@ from .diagnostics import (
     SearchLimitError,
     SearchLimits,
     SearchReport,
+    SearchStageReport,
 )
 from .discretization import (
     CategoryPolicy,
@@ -59,6 +60,7 @@ __all__ = (
     "SearchLimitError",
     "SearchLimits",
     "SearchReport",
+    "SearchStageReport",
     "SelectionLimits",
     "SimilarityStabilityReport",
     "Slice",

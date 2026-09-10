@@ -77,6 +77,9 @@ Search diagnostics
 .. autoclass:: ginsu.SearchLevelReport
    :members:
 
+.. autoclass:: ginsu.SearchStageReport
+   :members:
+
 .. autoclass:: ginsu.SearchLimitError
 
 .. autoclass:: ginsu.AnalysisLimitError

@@ -39,6 +39,19 @@ SEARCH_CARDINALITY_SCHEMA = pl.Schema(
     }
 )
 
+SEARCH_TIMING_SCHEMA = pl.Schema(
+    {
+        "stage": pl.String,
+        "stage_order": pl.UInt32,
+        "status": pl.String,
+        "elapsed_seconds": pl.Float64,
+        "memory_start_bytes": pl.UInt64,
+        "memory_end_bytes": pl.UInt64,
+        "observed_peak_memory_bytes": pl.UInt64,
+        "memory_measurement": pl.String,
+    }
+)
+
 _SEARCH_SUMMARY_DTYPES: dict[str, Any] = {
     "status": pl.String,
     "exhaustive": pl.Boolean,
@@ -50,7 +63,10 @@ _SEARCH_SUMMARY_DTYPES: dict[str, Any] = {
     "encoded_feature_count": pl.UInt64,
     "completed_level_count": pl.UInt32,
     "last_completed_level": pl.UInt32,
+    "recorded_stage_count": pl.UInt32,
     "elapsed_seconds": pl.Float64,
+    "memory_measurement": pl.String,
+    "observed_peak_memory_bytes": pl.UInt64,
     "copy_boundaries": pl.List(pl.String),
     "warning_codes": pl.List(pl.String),
     "termination_reason": pl.String,
@@ -176,7 +192,10 @@ def search_summary_data(report: SearchReport) -> pl.DataFrame:
         "encoded_feature_count": report.encoded_feature_count,
         "completed_level_count": len(report.levels),
         "last_completed_level": last_level,
+        "recorded_stage_count": len(report.stages),
         "elapsed_seconds": report.elapsed_seconds,
+        "memory_measurement": report.memory_measurement,
+        "observed_peak_memory_bytes": report.observed_peak_memory_bytes,
         "copy_boundaries": list(report.copy_boundaries),
         "warning_codes": list(report.warning_codes),
         "termination_reason": report.termination_reason,
@@ -189,6 +208,38 @@ def search_summary_data(report: SearchReport) -> pl.DataFrame:
         "max_tied_slices": limits.max_tied_slices,
     }
     return pl.DataFrame([row], schema=SEARCH_SUMMARY_SCHEMA)
+
+
+def search_timing_data(
+    report: SearchReport,
+    *,
+    max_stages: int = 500,
+) -> pl.DataFrame:
+    """Return bounded stage timing and optional boundary-memory evidence."""
+    _validate_report(report)
+    _validate_positive_integer("max_stages", max_stages)
+    stage_count = len(report.stages)
+    if stage_count > max_stages:
+        raise AnalysisLimitError(
+            "GINSU_MAX_SEARCH_PLOT_STAGES",
+            observed=stage_count,
+            limit=max_stages,
+            stage="search profile plot data",
+        )
+    rows = [
+        {
+            "stage": stage.stage,
+            "stage_order": order,
+            "status": stage.status,
+            "elapsed_seconds": stage.elapsed_seconds,
+            "memory_start_bytes": stage.memory_start_bytes,
+            "memory_end_bytes": stage.memory_end_bytes,
+            "observed_peak_memory_bytes": stage.observed_peak_memory_bytes,
+            "memory_measurement": report.memory_measurement,
+        }
+        for order, stage in enumerate(report.stages)
+    ]
+    return pl.DataFrame(rows, schema=SEARCH_TIMING_SCHEMA)
 
 
 def _validate_report(report: SearchReport) -> None:

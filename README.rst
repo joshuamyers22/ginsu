@@ -112,9 +112,10 @@ those unmatched outcomes and refuse to imply additive attribution across
 overlapping slices.
 
 ``plot_search_report`` turns the immutable search report into bounded candidate
-funnel and source-cardinality diagnostics. It retains early limit termination,
-backend, copy-boundary, and active-limit evidence without presenting execution
-cost as model quality.
+funnel, per-stage timing, and source-cardinality diagnostics. An opt-in,
+caller-labeled memory sampler can add stage-boundary byte observations. The
+profile retains early limit termination, backend, copy-boundary, and
+active-limit evidence without presenting execution cost as model quality.
 
 Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
 compatible pandas and PyArrow tables enter through public Arrow or dataframe

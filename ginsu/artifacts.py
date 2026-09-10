@@ -24,11 +24,17 @@ from ginsu._domain import (
     value_from_canonical_json,
 )
 from ginsu._frame import schema_signature
-from ginsu.diagnostics import SearchLevelReport, SearchLimits, SearchReport
+from ginsu.diagnostics import (
+    SearchLevelReport,
+    SearchLimits,
+    SearchReport,
+    SearchStageReport,
+)
 from ginsu.discretization import DiscretizationPlan
 
 ARTIFACT_FORMAT = "ginsu.slice-analysis"
-ARTIFACT_VERSION = "1.0.0"
+ARTIFACT_VERSION = "2.0.0"
+_SUPPORTED_ARTIFACT_VERSIONS = ("1.0.0", ARTIFACT_VERSION)
 CANONICALIZATION_VERSION = 1
 ALGORITHM_NAME = "sliceline"
 ALGORITHM_VERSION = "1"
@@ -630,7 +636,8 @@ def _parse_manifest(value: Any) -> dict[str, Any]:
     )
     if root["artifact_format"] != ARTIFACT_FORMAT:
         raise ArtifactError("GINSU_ARTIFACT_FORMAT", "unknown artifact format")
-    if root["artifact_version"] != ARTIFACT_VERSION:
+    artifact_version = root["artifact_version"]
+    if artifact_version not in _SUPPORTED_ARTIFACT_VERSIONS:
         raise ArtifactError(
             "GINSU_ARTIFACT_VERSION", "unsupported artifact version"
         )
@@ -649,7 +656,9 @@ def _parse_manifest(value: Any) -> dict[str, Any]:
 
     feature_schema = _parse_feature_schema(root["feature_schema"])
     search_parameters = _parse_search_parameters(root["search_parameters"])
-    report = _parse_search_report(root["search_report"])
+    report = _parse_search_report(
+        root["search_report"], artifact_version=artifact_version
+    )
     dataset_fingerprint = _required_string(
         root["dataset_fingerprint"], "dataset_fingerprint"
     )
@@ -693,26 +702,35 @@ def _parse_manifest(value: Any) -> dict[str, Any]:
     }
 
 
-def _parse_search_report(value: Any) -> SearchReport:
+def _parse_search_report(value: Any, *, artifact_version: str) -> SearchReport:
+    keys = {
+        "status",
+        "backend",
+        "numba_used",
+        "input_kind",
+        "input_schema",
+        "row_count",
+        "feature_count",
+        "feature_cardinalities",
+        "encoded_feature_count",
+        "copy_boundaries",
+        "levels",
+        "elapsed_seconds",
+        "limits",
+        "warning_codes",
+        "termination_reason",
+    }
+    if artifact_version == "2.0.0":
+        keys.update(
+            {
+                "stages",
+                "memory_measurement",
+                "observed_peak_memory_bytes",
+            }
+        )
     root = _closed_mapping(
         value,
-        {
-            "status",
-            "backend",
-            "numba_used",
-            "input_kind",
-            "input_schema",
-            "row_count",
-            "feature_count",
-            "feature_cardinalities",
-            "encoded_feature_count",
-            "copy_boundaries",
-            "levels",
-            "elapsed_seconds",
-            "limits",
-            "warning_codes",
-            "termination_reason",
-        },
+        keys,
         "search_report",
     )
     status = _required_string(root["status"], "search_report.status")
@@ -800,6 +818,71 @@ def _parse_search_report(value: Any) -> SearchReport:
         raise ArtifactError(
             "GINSU_ARTIFACT_REPORT", "termination_reason is invalid"
         )
+    stages: tuple[SearchStageReport, ...] = ()
+    memory_measurement: str | None = None
+    observed_peak_memory_bytes: int | None = None
+    if artifact_version == "2.0.0":
+        parsed_stages = []
+        for index, item in enumerate(
+            _plain_list(root["stages"], "search_report.stages")
+        ):
+            stage_data = _closed_mapping(
+                item,
+                set(SearchStageReport.__dataclass_fields__),
+                f"stages[{index}]",
+            )
+            stage_status = _required_string(
+                stage_data["status"], f"stages[{index}].status"
+            )
+            if stage_status not in ("complete", "terminated"):
+                raise ArtifactError(
+                    "GINSU_ARTIFACT_REPORT", "invalid search stage status"
+                )
+            stage_elapsed = _finite_number(
+                stage_data["elapsed_seconds"],
+                f"stages[{index}].elapsed_seconds",
+            )
+            if stage_elapsed < 0:
+                raise ArtifactError(
+                    "GINSU_ARTIFACT_REPORT",
+                    "search stage elapsed_seconds is negative",
+                )
+            parsed_stages.append(
+                SearchStageReport(
+                    stage=_required_string(
+                        stage_data["stage"], f"stages[{index}].stage"
+                    ),
+                    status=stage_status,  # type: ignore[arg-type]
+                    elapsed_seconds=stage_elapsed,
+                    memory_start_bytes=_optional_int(
+                        stage_data["memory_start_bytes"],
+                        f"stages[{index}].memory_start_bytes",
+                    ),
+                    memory_end_bytes=_optional_int(
+                        stage_data["memory_end_bytes"],
+                        f"stages[{index}].memory_end_bytes",
+                    ),
+                    observed_peak_memory_bytes=_optional_int(
+                        stage_data["observed_peak_memory_bytes"],
+                        f"stages[{index}].observed_peak_memory_bytes",
+                    ),
+                )
+            )
+        stages = tuple(parsed_stages)
+        raw_measurement = root["memory_measurement"]
+        if raw_measurement is not None:
+            memory_measurement = _required_string(
+                raw_measurement, "search_report.memory_measurement"
+            )
+            if len(memory_measurement) > 200:
+                raise ArtifactError(
+                    "GINSU_ARTIFACT_REPORT",
+                    "memory_measurement exceeds 200 characters",
+                )
+        observed_peak_memory_bytes = _optional_int(
+            root["observed_peak_memory_bytes"],
+            "search_report.observed_peak_memory_bytes",
+        )
     return SearchReport(
         status=status,  # type: ignore[arg-type]
         backend=backend,  # type: ignore[arg-type]
@@ -822,6 +905,9 @@ def _parse_search_report(value: Any) -> SearchReport:
         limits=active_limits,
         warning_codes=_string_tuple(root["warning_codes"], "warning_codes"),
         termination_reason=termination,
+        stages=stages,
+        memory_measurement=memory_measurement,
+        observed_peak_memory_bytes=observed_peak_memory_bytes,
     )
 
 

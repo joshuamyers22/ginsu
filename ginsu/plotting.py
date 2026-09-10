@@ -24,6 +24,7 @@ from ginsu._search_plot_data import (
     search_cardinality_data,
     search_funnel_data,
     search_summary_data,
+    search_timing_data,
 )
 from ginsu._stability_plot_data import (
     SensitivityMetric,
@@ -728,23 +729,27 @@ def plot_search_report(
     *,
     max_levels: int = 100,
     max_features: int = 100,
+    max_stages: int = 500,
     max_cells: int = 10_000,
 ):
-    """Plot bounded search attrition and feature-cardinality diagnostics."""
+    """Plot bounded search attrition, timing, and input diagnostics."""
     funnel = search_funnel_data(
         report, max_levels=max_levels, max_cells=max_cells
     )
     cardinality = search_cardinality_data(report, max_features=max_features)
+    timing = search_timing_data(report, max_stages=max_stages)
     summary = search_summary_data(report)
     go = _plotly_graph_objects()
     make_subplots = _plotly_make_subplots()
     figure = make_subplots(
-        rows=2,
+        rows=3,
         cols=1,
-        row_heights=(0.64, 0.36),
-        vertical_spacing=0.18,
+        specs=[[{}], [{"secondary_y": True}], [{}]],
+        row_heights=(0.44, 0.30, 0.26),
+        vertical_spacing=0.12,
         subplot_titles=(
             "Completed-level candidate funnel",
+            "Recorded stage duration and boundary memory",
             "Source-feature cardinality",
         ),
     )
@@ -796,6 +801,72 @@ def plot_search_report(
             col=1,
         )
 
+    if timing.height:
+        stage_labels = [
+            stage.replace("_", " ") for stage in timing["stage"].to_list()
+        ]
+        statuses = timing["status"].to_list()
+        figure.add_trace(
+            go.Bar(
+                x=stage_labels,
+                y=timing["elapsed_seconds"].to_list(),
+                name="Stage duration",
+                marker={
+                    "color": [
+                        "#e45756" if status == "terminated" else "#4c78a8"
+                        for status in statuses
+                    ],
+                    "pattern": {
+                        "shape": [
+                            "/" if status == "terminated" else ""
+                            for status in statuses
+                        ]
+                    },
+                },
+                customdata=timing.select("stage", "status").to_numpy(),
+                hovertemplate=(
+                    "%{customdata[0]}<br>Duration=%{y:.6g}s"
+                    "<br>Status=%{customdata[1]}<extra></extra>"
+                ),
+            ),
+            row=2,
+            col=1,
+            secondary_y=False,
+        )
+        if timing["observed_peak_memory_bytes"].null_count() < timing.height:
+            figure.add_trace(
+                go.Scatter(
+                    x=stage_labels,
+                    y=timing["observed_peak_memory_bytes"].to_list(),
+                    mode="lines+markers",
+                    name="Observed boundary memory",
+                    line={"color": "#f58518", "dash": "dot"},
+                    marker={"color": "#f58518", "symbol": "diamond"},
+                    customdata=timing.select(
+                        "stage",
+                        "memory_start_bytes",
+                        "memory_end_bytes",
+                        "memory_measurement",
+                    ).to_numpy(),
+                    hovertemplate=(
+                        "%{customdata[0]}<br>Largest boundary observation="
+                        "%{y:,} bytes<br>Start=%{customdata[1]:,} bytes"
+                        "<br>End=%{customdata[2]:,} bytes"
+                        "<br>Measurement=%{customdata[3]}<extra></extra>"
+                    ),
+                ),
+                row=2,
+                col=1,
+                secondary_y=True,
+            )
+    else:
+        figure.add_annotation(
+            text="No per-stage timing evidence (legacy report)",
+            showarrow=False,
+            row=2,
+            col=1,
+        )
+
     if cardinality.height:
         figure.add_trace(
             go.Bar(
@@ -827,14 +898,14 @@ def plot_search_report(
                 ),
                 showlegend=False,
             ),
-            row=2,
+            row=3,
             col=1,
         )
     else:
         figure.add_annotation(
             text="No source features",
             showarrow=False,
-            row=2,
+            row=3,
             col=1,
         )
 
@@ -853,7 +924,7 @@ def plot_search_report(
             x=summary_row["max_feature_cardinality"],
             line_color="#e45756",
             line_dash="dot",
-            row=2,
+            row=3,
             col=1,
         )
 
@@ -862,10 +933,21 @@ def plot_search_report(
     copies = " → ".join(summary_row["copy_boundaries"]) or "none"
     warnings = ", ".join(summary_row["warning_codes"]) or "none"
     termination = summary_row["termination_reason"] or "none"
+    memory_measurement = summary_row["memory_measurement"]
+    peak_memory = summary_row["observed_peak_memory_bytes"]
+    memory_label = (
+        "not enabled"
+        if memory_measurement is None
+        else (
+            f"{memory_measurement}, no observations"
+            if peak_memory is None
+            else f"{memory_measurement}, max observed {peak_memory:,} bytes"
+        )
+    )
     figure.update_layout(
         title=f"Ginsu search profile: {summary_row['status']}",
         template="plotly_white",
-        height=max(680, min(2_200, 22 * cardinality.height + 520)),
+        height=max(860, min(2_400, 22 * cardinality.height + 700)),
         meta=summary_row,
         annotations=[
             *list(figure.layout.annotations),
@@ -877,7 +959,8 @@ def plot_search_report(
                     f"{summary_row['row_count']} rows, "
                     f"{summary_row['feature_count']} features, "
                     f"{encoded_label} encoded · "
-                    f"Total elapsed: {summary_row['elapsed_seconds']:.4g}s"
+                    f"Total elapsed: {summary_row['elapsed_seconds']:.4g}s · "
+                    f"Recorded stages: {summary_row['recorded_stage_count']}"
                 ),
                 "showarrow": False,
                 "xref": "paper",
@@ -889,8 +972,7 @@ def plot_search_report(
             {
                 "text": (
                     f"Copies: {copies} · Warnings: {warnings} · "
-                    f"Termination: {termination}. Total timing only; stage "
-                    "timing and peak memory were not recorded."
+                    f"Termination: {termination} · Memory: {memory_label}."
                 ),
                 "showarrow": False,
                 "xref": "paper",
@@ -900,7 +982,12 @@ def plot_search_report(
                 "xanchor": "left",
             },
             {
-                "text": "Execution diagnostics only; not model-quality evidence.",
+                "text": (
+                    "Execution diagnostics only; not model-quality evidence. "
+                    "Memory values are boundary observations, not allocation "
+                    "attribution or a continuous peak unless the configured "
+                    "sampler itself reports peak-to-date values."
+                ),
                 "showarrow": False,
                 "xref": "paper",
                 "yref": "paper",
@@ -912,9 +999,16 @@ def plot_search_report(
     )
     figure.update_xaxes(title_text="Lattice level", dtick=1, row=1, col=1)
     figure.update_yaxes(title_text="Candidate count", row=1, col=1)
-    figure.update_xaxes(title_text="Distinct values", row=2, col=1)
+    figure.update_xaxes(title_text="Search stage", row=2, col=1)
     figure.update_yaxes(
-        title_text="Source feature", autorange="reversed", row=2, col=1
+        title_text="Elapsed seconds", row=2, col=1, secondary_y=False
+    )
+    figure.update_yaxes(
+        title_text="Observed bytes", row=2, col=1, secondary_y=True
+    )
+    figure.update_xaxes(title_text="Distinct values", row=3, col=1)
+    figure.update_yaxes(
+        title_text="Source feature", autorange="reversed", row=3, col=1
     )
     return figure
 
