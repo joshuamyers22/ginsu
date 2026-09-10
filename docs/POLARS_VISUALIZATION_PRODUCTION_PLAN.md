@@ -36,7 +36,10 @@ caller-controlled runs is implemented together with bounded, anchor-based
 predicate similarity and membership similarity on verified common reference
 rows. Bounded stability and scalar hyperparameter-sensitivity data and Plotly
 views are implemented with explicit unavailable-run evidence. Automated
-parameter-grid execution remains caller-controlled. Comparison, notebook
+parameter-grid execution remains caller-controlled. The artifact comparison
+foundation now implements exact/predicate/membership matching, metric and rule
+deltas, migration counts, and explicit incompatible results. Comparison plots,
+validation/stability-status deltas, structured time-window metadata, notebook
 migration, and release hardening remain open.
 
 ## 1. Executive summary

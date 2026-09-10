@@ -1,5 +1,10 @@
 from ._domain import Predicate, Slice
 from .artifacts import ArtifactError, ArtifactLimits, SliceAnalysis
+from .comparison import (
+    AnalysisComparison,
+    ComparisonLimits,
+    compare_analyses,
+)
 from .diagnostics import (
     AnalysisLimitError,
     ResourceLimitError,
@@ -39,9 +44,11 @@ from .validation import (
 
 __all__ = (
     "AnalysisLimitError",
+    "AnalysisComparison",
     "ArtifactError",
     "ArtifactLimits",
     "CategoryPolicy",
+    "ComparisonLimits",
     "DiscretizationPlan",
     "EqualWidthBins",
     "FixedBins",
@@ -65,6 +72,7 @@ __all__ = (
     "StabilityRun",
     "ValidationInference",
     "ValidationLimits",
+    "compare_analyses",
     "evaluate_similarity_stability",
     "is_numba_available",
     "evaluate_stability",

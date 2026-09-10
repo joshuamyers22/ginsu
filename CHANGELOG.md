@@ -47,6 +47,9 @@ after the pre-1.0 API is established.
 - Pure-Polars stability and parameter-sensitivity plot data with bounded
   optional Plotly frequency, distribution, parameter-response, and run-evidence
   panels.
+- Bounded one-to-one analysis comparison with exact, predicate, or
+  common-reference membership matching; metric and predicate deltas;
+  migration counts; and explicit emerged, resolved, or non-comparable results.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed

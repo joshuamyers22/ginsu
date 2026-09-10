@@ -103,6 +103,11 @@ Optional ``plot_stability`` and ``plot_sensitivity`` render recurrence,
 run-level metric distributions, parameter response, and unavailable-run
 evidence without converting the Polars data contracts to pandas.
 
+Two exhaustive ``SliceAnalysis`` artifacts can be compared with
+``compare_analyses``. Exact IDs are matched first, optional related matches are
+one-to-one, incompatible feature/discretization semantics remain explicitly
+non-comparable, and every emerged or resolved rule stays in the Polars result.
+
 Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
 compatible pandas and PyArrow tables enter through public Arrow or dataframe
 interchange protocols and produce Polars outputs. Ginsu production code does

@@ -54,6 +54,17 @@ Stability
 .. autoclass:: ginsu.StabilityReferenceLimits
    :members:
 
+Analysis comparison
+-------------------
+
+.. autofunction:: ginsu.compare_analyses
+
+.. autoclass:: ginsu.AnalysisComparison
+   :members:
+
+.. autoclass:: ginsu.ComparisonLimits
+   :members:
+
 Search diagnostics
 ------------------
 

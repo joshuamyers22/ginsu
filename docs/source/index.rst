@@ -8,6 +8,7 @@
    Validation
    Selection
    Stability
+   Comparison
    Artifacts
    Visualization
    API
