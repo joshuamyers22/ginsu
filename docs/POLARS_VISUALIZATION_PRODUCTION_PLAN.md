@@ -13,7 +13,7 @@
 
 ### Implementation snapshot
 
-As of 2026-09-09, the independent `ginsu` package name, frozen lock, core
+As of 2026-09-10, the independent `ginsu` package name, frozen lock, core
 correctness fixes, Polars/Arrow boundary, immutable slice domain values,
 canonical result frames, impact plot, and observed error-dependence plot are
 implemented locally with focused tests. Cross-producer parity, stable-ID
@@ -32,9 +32,10 @@ permutation tests with Holm correction are also implemented for testable fixed
 rules. Score, exact-membership, and greedy Jaccard-diversity post-selection are
 implemented as bounded audit views that preserve discovery ranking. Full-search
 permutation remains open. Failure-aware exact-rule stability across
-caller-controlled runs is implemented; predicate/membership similarity and
-hyperparameter sensitivity remain open, as do comparison, notebook migration,
-and release hardening.
+caller-controlled runs is implemented together with bounded, anchor-based
+predicate similarity and membership similarity on verified common reference
+rows. Hyperparameter sensitivity remains open, as do comparison, notebook
+migration, and release hardening.
 
 ## 1. Executive summary
 

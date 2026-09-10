@@ -96,7 +96,9 @@ empty reference memberships, and incremental coverage for auditability.
 Caller-controlled fold, resample, or time-window searches can be captured with
 ``StabilityRun`` and aggregated with ``evaluate_stability``. Failed and
 limit-terminated attempts remain visible rather than being counted as false
-slice absences.
+slice absences. ``evaluate_similarity_stability`` separately matches related
+rules by canonical predicate-set Jaccard or by membership Jaccard on a
+verified common reference population; exact identities are never overwritten.
 
 Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
 compatible pandas and PyArrow tables enter through public Arrow or dataframe

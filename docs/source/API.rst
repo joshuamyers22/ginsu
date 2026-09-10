@@ -37,13 +37,21 @@ Stability
 
 .. autofunction:: ginsu.evaluate_stability
 
+.. autofunction:: ginsu.evaluate_similarity_stability
+
 .. autoclass:: ginsu.StabilityRun
    :members: from_finder, unavailable
 
 .. autoclass:: ginsu.StabilityReport
    :members:
 
+.. autoclass:: ginsu.SimilarityStabilityReport
+   :members:
+
 .. autoclass:: ginsu.StabilityLimits
+   :members:
+
+.. autoclass:: ginsu.StabilityReferenceLimits
    :members:
 
 Search diagnostics

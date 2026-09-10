@@ -9,10 +9,16 @@ from ginsu import (
     AnalysisLimitError,
     Slicefinder,
     StabilityLimits,
+    StabilityReferenceLimits,
     StabilityRun,
+    evaluate_similarity_stability,
     evaluate_stability,
 )
 from ginsu.stability import (
+    RUN_PREDICATE_SCHEMA,
+    RUN_REFERENCE_MEMBERSHIP_SCHEMA,
+    SIMILARITY_MATCH_SCHEMA,
+    SIMILARITY_SUMMARY_SCHEMA,
     SLICE_RUN_SCHEMA,
     STABILITY_RUN_SCHEMA,
     STABILITY_SUMMARY_SCHEMA,
@@ -32,6 +38,54 @@ def _finder(region: str, *, scale: float = 1.0) -> Slicefinder:
         min_sup=2,
         verbose=False,
     ).fit(frame, errors)
+
+
+def _two_feature_finder(target: str) -> Slicefinder:
+    frame = pl.DataFrame(
+        {
+            "a": [0, 0, 0, 0, 1, 1, 1, 1],
+            "b": [0, 0, 1, 1, 0, 0, 1, 1],
+        }
+    )
+    if target == "a":
+        errors = [5.0, 5.0, 5.0, 5.0, 1.0, 1.0, 1.0, 1.0]
+    elif target == "b":
+        errors = [5.0, 5.0, 1.0, 1.0, 5.0, 5.0, 1.0, 1.0]
+    else:
+        errors = [1.0, 1.0, 5.0, 5.0, 1.0, 1.0, 1.0, 1.0]
+    return Slicefinder(
+        alpha=0.95,
+        k=1,
+        max_l=2,
+        min_sup=1,
+        verbose=False,
+    ).fit(frame, errors)
+
+
+def _similarity_runs(reference: pl.DataFrame | None = None):
+    kwargs = {}
+    if reference is not None:
+        kwargs = {
+            "reference_frame": reference,
+            "reference_id": "reference-v1",
+            "reference_row_id": pl.Series("row", range(reference.height)),
+        }
+    return [
+        StabilityRun.from_finder(
+            _two_feature_finder("a"),
+            run_id="run-a",
+            partition_id="train-a",
+            resampling_unit="account",
+            **kwargs,
+        ),
+        StabilityRun.from_finder(
+            _two_feature_finder("b"),
+            run_id="run-b",
+            partition_id="train-b",
+            resampling_unit="account",
+            **kwargs,
+        ),
+    ]
 
 
 @pytest.fixture
@@ -314,3 +368,186 @@ def test_inconsistent_rule_for_a_canonical_id_is_rejected(stability_runs):
 
     with pytest.raises(ValueError, match="inconsistent display rules"):
         evaluate_stability([original, inconsistent])
+
+
+def test_from_finder_captures_predicate_sets_for_similarity():
+    run = _similarity_runs()[0]
+
+    assert run.predicates.schema == RUN_PREDICATE_SCHEMA
+    assert run.predicates.height == run.observations.height == 1
+    assert len(run.predicates["predicate_tokens"][0]) == 1
+
+
+def test_predicate_similarity_matches_related_rules_without_merging_ids():
+    related = StabilityRun.from_finder(
+        _two_feature_finder("intersection"),
+        run_id="intersection",
+        partition_id="train-intersection",
+        resampling_unit="account",
+    )
+    broad = StabilityRun.from_finder(
+        _two_feature_finder("a"),
+        run_id="broad",
+        partition_id="train-broad",
+        resampling_unit="account",
+    )
+
+    report = evaluate_similarity_stability(
+        [related, broad],
+        method="predicate",
+        similarity_threshold=0.5,
+    )
+
+    assert report.matches.schema == SIMILARITY_MATCH_SCHEMA
+    assert report.summary.schema == SIMILARITY_SUMMARY_SCHEMA
+    anchor_id = related.observations["__ginsu_id"][0]
+    summary = report.summary.filter(pl.col("anchor_id") == anchor_id).row(
+        0, named=True
+    )
+    assert summary["matched_run_count"] == 2
+    assert summary["exact_run_count"] == 1
+    assert summary["match_frequency_successful"] == 1.0
+    assert summary["similarity_min"] == 0.5
+    assert (
+        report.exact.summary.filter(pl.col("__ginsu_id") == anchor_id)[
+            "selection_frequency_successful"
+        ][0]
+        == 0.5
+    )
+
+
+def test_membership_similarity_uses_verified_common_reference():
+    reference = pl.DataFrame({"a": [0, 0, 1, 1], "b": [0, 0, 1, 1]})
+    runs = _similarity_runs(reference)
+
+    predicate = evaluate_similarity_stability(
+        runs, method="predicate", similarity_threshold=0.8
+    )
+    membership = evaluate_similarity_stability(
+        runs, method="membership", similarity_threshold=0.8
+    )
+
+    assert set(predicate.summary["match_frequency_successful"]) == {0.5}
+    assert set(membership.summary["match_frequency_successful"]) == {1.0}
+    assert set(membership.summary["similarity_min"]) == {1.0}
+    assert membership.reference_id == "reference-v1"
+    assert membership.reference_row_count == reference.height
+    assert membership.reference_row_fingerprint.startswith(
+        "ginsu:reference-rows:v1:"
+    )
+    assert runs[0].reference_memberships.schema == (
+        RUN_REFERENCE_MEMBERSHIP_SCHEMA
+    )
+
+
+def test_membership_similarity_rejects_misaligned_reference_rows():
+    reference = pl.DataFrame({"a": [0, 0, 1, 1], "b": [0, 0, 1, 1]})
+    first, _ = _similarity_runs(reference)
+    second = StabilityRun.from_finder(
+        _two_feature_finder("b"),
+        run_id="run-b",
+        partition_id="train-b",
+        resampling_unit="account",
+        reference_frame=reference,
+        reference_id="reference-v1",
+        reference_row_id=pl.Series("row", [1, 0, 2, 3]),
+    )
+
+    with pytest.raises(ValueError, match="ordered reference-row"):
+        evaluate_similarity_stability([first, second], method="membership")
+
+
+def test_membership_similarity_requires_captured_reference():
+    with pytest.raises(ValueError, match="no common-reference"):
+        evaluate_similarity_stability(_similarity_runs(), method="membership")
+
+
+def test_similarity_retains_unavailable_runs_as_unknown():
+    run = _similarity_runs()[0]
+    failed = StabilityRun.unavailable(
+        run_id="failed",
+        status="failed",
+        partition_id="failed-train",
+        resampling_unit="account",
+        failure_reason="worker failed",
+    )
+
+    report = evaluate_similarity_stability(
+        [run, failed], method="predicate", minimum_successful_runs=1
+    )
+    unavailable = report.matches.filter(pl.col("run_id") == "failed")
+
+    assert unavailable["evidence_available"].to_list() == [False]
+    assert unavailable["matched"].to_list() == [None]
+    assert unavailable["similarity"].to_list() == [None]
+    assert report.summary["match_frequency_successful"][0] == 1.0
+
+
+def test_empty_reference_union_is_unknown_not_perfect_overlap():
+    reference = pl.DataFrame({"a": [1, 1], "b": [1, 1]})
+    report = evaluate_similarity_stability(
+        _similarity_runs(reference),
+        method="membership",
+        similarity_threshold=0.5,
+    )
+
+    assert report.matches["similarity"].null_count() == report.matches.height
+    assert report.summary["matched_run_count"].sum() == 0
+    assert "GINSU_STABILITY_EMPTY_REFERENCE_MEMBERSHIP" in (
+        report.warning_codes
+    )
+
+
+def test_similarity_comparison_limit_fails_before_pairwise_work():
+    runs = _similarity_runs()
+
+    with pytest.raises(AnalysisLimitError) as raised:
+        evaluate_similarity_stability(
+            runs,
+            limits=StabilityLimits(max_similarity_comparisons=1),
+        )
+
+    assert raised.value.code == ("GINSU_MAX_STABILITY_SIMILARITY_COMPARISONS")
+
+
+def test_reference_capture_limits_fail_before_membership(monkeypatch):
+    finder = _two_feature_finder("a")
+    reference = pl.DataFrame({"a": [0, 1], "b": [0, 1]})
+    monkeypatch.setattr(
+        finder,
+        "membership_frame",
+        lambda *_args, **_kwargs: pytest.fail("membership was materialized"),
+    )
+
+    with pytest.raises(AnalysisLimitError) as raised:
+        StabilityRun.from_finder(
+            finder,
+            run_id="run",
+            partition_id="train",
+            resampling_unit="row",
+            reference_frame=reference,
+            reference_id="reference-v1",
+            reference_row_id=pl.Series("row", [0, 1]),
+            reference_limits=StabilityReferenceLimits(max_rows=1),
+        )
+
+    assert raised.value.code == "GINSU_MAX_STABILITY_REFERENCE_ROWS"
+
+
+@pytest.mark.parametrize(
+    "kwargs, error_type, message",
+    [
+        ({"method": "cosine"}, ValueError, "method"),
+        ({"similarity_threshold": 0}, ValueError, "similarity_threshold"),
+        (
+            {"similarity_threshold": float("nan")},
+            ValueError,
+            "similarity_threshold",
+        ),
+    ],
+)
+def test_invalid_similarity_configuration_is_rejected(
+    kwargs, error_type, message
+):
+    with pytest.raises(error_type, match=message):
+        evaluate_similarity_stability(_similarity_runs(), **kwargs)

@@ -41,6 +41,9 @@ after the pre-1.0 API is established.
   views with representative, exclusion, and incremental-coverage evidence.
 - Failure-aware exact-rule stability aggregation across caller-controlled runs,
   including recurrence, rank, score, support, and error-lift distributions.
+- Deterministic anchor-based predicate and common-reference membership
+  similarity reports with audited candidates, row-identity fingerprints,
+  undefined-empty handling, and fail-fast work limits.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed

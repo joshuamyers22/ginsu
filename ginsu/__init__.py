@@ -22,9 +22,12 @@ from .selection import (
 )
 from .slicefinder import Slicefinder, is_numba_available
 from .stability import (
+    SimilarityStabilityReport,
     StabilityLimits,
+    StabilityReferenceLimits,
     StabilityReport,
     StabilityRun,
+    evaluate_similarity_stability,
     evaluate_stability,
 )
 from .validation import (
@@ -50,16 +53,19 @@ __all__ = (
     "SearchLimits",
     "SearchReport",
     "SelectionLimits",
+    "SimilarityStabilityReport",
     "Slice",
     "SliceAnalysis",
     "SliceSelection",
     "SliceValidation",
     "Slicefinder",
     "StabilityLimits",
+    "StabilityReferenceLimits",
     "StabilityReport",
     "StabilityRun",
     "ValidationInference",
     "ValidationLimits",
+    "evaluate_similarity_stability",
     "is_numba_available",
     "evaluate_stability",
     "select_slices",

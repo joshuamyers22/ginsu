@@ -23,6 +23,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `fixed-rule-holdout-inference` | Optional holdout inference uses marginal percentile-bootstrap intervals, one-sided plus-one permutation tests of inside-versus-outside mean loss, and Holm correction across testable returned rules. It does not correct discovery selection or repeated holdout use. | `docs/adr/0006-fixed-rule-holdout-inference.md`; `ginsu/validation.py`; `tests/test_validation.py` | 2026-09-09 |
 | `auditable-post-selection` | Score, exact-membership, and greedy Jaccard-diversity views preserve raw discoveries and retain every candidate with representative, exclusion, and incremental-coverage evidence on an explicit reference frame. | `docs/adr/0007-auditable-diversity-selection.md`; `ginsu/selection.py`; `tests/test_selection.py` | 2026-09-10 |
 | `exact-rule-stability` | Stability aggregation consumes caller-controlled run evidence, counts exact canonical recurrence, and retains failed/limited attempts as unavailable rather than false absences. | `docs/adr/0008-exact-rule-stability-foundation.md`; `ginsu/stability.py`; `tests/test_stability.py` | 2026-09-10 |
+| `anchor-stability-similarity` | Related-rule recurrence is a separate anchor-based report using predicate-set or verified common-reference membership Jaccard; it does not merge canonical IDs or form transitive fuzzy clusters. | `docs/adr/0009-anchor-based-stability-similarity.md`; `ginsu/stability.py`; `tests/test_stability.py` | 2026-09-10 |
 
 ## Non-obvious current state
 
@@ -39,6 +40,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `validation-foundation` | Fixed discovered rules can be evaluated descriptively or with opt-in bounded inference on schema-compatible holdout data. Discovery order is preserved; support/testability states and method metadata remain explicit. | `ginsu/validation.py`; `tests/test_validation.py`; `docs/source/Validation.rst` | 2026-09-09 |
 | `selection-foundation` | Deterministic score, exact-membership, and greedy diversity views are bounded and leave fitted ranking untouched while recording every candidate decision. | `ginsu/selection.py`; `tests/test_selection.py`; `docs/source/Selection.rst` | 2026-09-10 |
 | `stability-foundation` | Exact slice recurrence and rank/score/support/lift distributions are aggregated across successful runs; attempted failures and limits remain explicit, with bounded cross-run tables. | `ginsu/stability.py`; `tests/test_stability.py`; `docs/source/Stability.rst` | 2026-09-10 |
+| `stability-similarity` | Canonical predicate Jaccard and membership Jaccard on caller-identified, ordered-row-fingerprinted common references produce bounded deterministic best-match audit tables and summaries. | `ginsu/stability.py`; `tests/test_stability.py`; `docs/source/Stability.rst` | 2026-09-10 |
 
 ## Verified traps
 
