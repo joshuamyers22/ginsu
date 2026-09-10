@@ -49,6 +49,50 @@ You can use Ginsu as follows:
        slice_finder, X, errors, feature="tier"
    )
 
+Evaluate the unchanged discovered rules on a separately prepared holdout
+partition before making generalization claims:
+
+.. code:: python
+
+   X_validation = pl.DataFrame(
+       {
+           "region": ["east", "west"],
+           "tier": [1, 2],
+       }
+   )
+   validation_errors = [2.0, 1.0]
+
+   validation = slice_finder.validate_slices(
+       X_validation,
+       validation_errors,
+       min_support=0.02,
+   )
+
+   print(validation.statistics)
+
+This first validation contract is descriptive: it preserves discovery order,
+labels insufficient support, and does not claim confidence intervals,
+significance, or multiplicity correction.
+
+Optional ``ValidationInference`` adds deterministic percentile-bootstrap
+intervals and one-sided permutation tests with Holm correction for fixed rules
+on a genuinely untouched validation partition. Its assumptions and the limits
+of that correction are documented in the holdout-validation guide.
+
+Build a compact view without overwriting raw discoveries:
+
+.. code:: python
+
+   diverse = slice_finder.select_slices(
+       X_validation,
+       method="diverse",
+       k=20,
+       max_jaccard=0.80,
+   )
+
+The complete decision table retains overlap blockers, capacity exclusions,
+empty reference memberships, and incremental coverage for auditability.
+
 Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
 compatible pandas and PyArrow tables enter through public Arrow or dataframe
 interchange protocols and produce Polars outputs. Ginsu production code does

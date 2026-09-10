@@ -22,7 +22,7 @@ test:
 	uv run --frozen coverage report -m
 
 benchmark:
-	uv run --frozen pytest -m performance --benchmark-only
+	uv run --frozen pytest -m performance
 
 doc:
 	LC_ALL=C LANG=C uv run --frozen sphinx-build -W -a -E docs/source docs/build

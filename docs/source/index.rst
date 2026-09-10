@@ -5,6 +5,8 @@
 
    Interoperability
    Discretization
+   Validation
+   Selection
    Artifacts
    Visualization
    API

@@ -18,7 +18,7 @@ Success criteria and the staged acceptance evidence are defined in
   bounded-resource contracts.
 - Keep plotting optional and free of import-time side effects.
 - Do not present discovery scores as statistical significance.
-- Do not create an external repository, publish a package, or release an
+- Do not change external repository settings, publish a package, or release an
   artifact without explicit authority and completed release evidence.
 - Preserve BSD attribution to the inherited implementation.
 

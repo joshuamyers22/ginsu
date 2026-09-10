@@ -5,7 +5,32 @@ Core estimator
 --------------
 
 .. autoclass:: ginsu.Slicefinder
-   :members: fit, transform, get_slice, membership_frame, equivalence_groups, overlap_frame, lattice_edges, get_feature_names_out
+   :members: fit, transform, get_slice, membership_frame, validate_slices, select_slices, equivalence_groups, overlap_frame, lattice_edges, get_feature_names_out
+
+Holdout validation
+------------------
+
+.. autofunction:: ginsu.validate_slices
+
+.. autoclass:: ginsu.SliceValidation
+   :members:
+
+.. autoclass:: ginsu.ValidationLimits
+   :members:
+
+.. autoclass:: ginsu.ValidationInference
+   :members:
+
+Post-selection
+--------------
+
+.. autofunction:: ginsu.select_slices
+
+.. autoclass:: ginsu.SliceSelection
+   :members:
+
+.. autoclass:: ginsu.SelectionLimits
+   :members:
 
 Search diagnostics
 ------------------

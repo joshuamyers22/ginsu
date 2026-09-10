@@ -32,6 +32,14 @@ after the pre-1.0 API is established.
 - Versioned, deterministic ``SliceAnalysis`` artifacts using closed-schema JSON
   and uncompressed Arrow IPC, with hashes, read limits, relational validation,
   and fitted discretization round trips.
+- Fixed-rule descriptive holdout validation with preserved discovery order,
+  explicit support status, zero-baseline handling, and membership limits.
+- Optional deterministic percentile-bootstrap intervals and one-sided
+  fixed-rule permutation tests with Holm correction, explicit testability
+  status, and bounded resampling work.
+- Auditable score, exact-membership, and greedy Jaccard-diversity selection
+  views with representative, exclusion, and incremental-coverage evidence.
+- Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed
 
@@ -41,6 +49,8 @@ after the pre-1.0 API is established.
   return Polars outputs while NumPy inputs preserve ndarray outputs.
 - Disabled inherited automatic PyPI/TestPyPI publication pending independent
   release authority and trusted-publisher configuration.
+- Made the performance target execute both calibrated benchmarks and
+  performance-marked resource/parity checks.
 
 ### Fixed
 

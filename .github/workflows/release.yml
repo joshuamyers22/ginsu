@@ -1,7 +1,7 @@
 name: Build release artifacts
 
-# Publication remains intentionally disabled until Ginsu has an independent
-# repository, trusted-publishing environments, and an approved release policy.
+# Publication remains intentionally disabled until Ginsu has trusted-publishing
+# environments, an approved release policy, and complete release evidence.
 on:
   workflow_dispatch:
 

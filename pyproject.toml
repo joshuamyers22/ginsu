@@ -102,7 +102,7 @@ warn_unused_ignores = true
 ignore_missing_imports = true
 
 [tool.coverage.run]
-omit = [".*", "*/site-packages/*", "tests/*", "*/validation.py", "*/_numba_ops.py"]
+omit = [".*", "*/site-packages/*", "tests/*"]
 
 [tool.coverage.report]
 fail_under = 80

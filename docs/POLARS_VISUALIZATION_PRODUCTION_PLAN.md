@@ -25,8 +25,14 @@ exact-equivalence and Jaccard-overlap data, lattice edges, and bounded Plotly
 composition/overlap/lattice views are also implemented. Automatic publication
 remains disabled. The initial versioned, non-executable ``SliceAnalysis``
 artifact with fitted-discretizer round trips and bounded fail-closed loading is
-implemented. Later-phase validation, comparison, notebook migration, and
-release hardening remain open.
+implemented. Fixed-rule descriptive holdout validation is implemented with
+preserved discovery ordering, explicit support status, and bounded membership;
+optional deterministic percentile-bootstrap intervals and one-sided
+permutation tests with Holm correction are also implemented for testable fixed
+rules. Score, exact-membership, and greedy Jaccard-diversity post-selection are
+implemented as bounded audit views that preserve discovery ranking. Full-search
+permutation, stability analysis, comparison, notebook migration, and release
+hardening remain open.
 
 ## 1. Executive summary
 

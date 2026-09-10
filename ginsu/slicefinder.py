@@ -9,7 +9,7 @@ import math
 import warnings
 from collections.abc import Callable
 from time import perf_counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
@@ -30,6 +30,18 @@ from ginsu.diagnostics import (
     SearchReport,
     SearchStatus,
 )
+
+if TYPE_CHECKING:
+    from ginsu.selection import (
+        SelectionLimits,
+        SelectionMethod,
+        SliceSelection,
+    )
+    from ginsu.validation import (
+        SliceValidation,
+        ValidationInference,
+        ValidationLimits,
+    )
 
 ArrayLike = npt.ArrayLike
 NDArray = npt.NDArray[Any]
@@ -745,6 +757,48 @@ class Slicefinder(BaseEstimator, TransformerMixin):
         from ginsu._plot_data import lattice_edges_data
 
         return lattice_edges_data(self, max_nodes=max_nodes)
+
+    def validate_slices(
+        self,
+        X: ArrayLike,
+        errors: ArrayLike,
+        *,
+        min_support: int | float | None = None,
+        limits: ValidationLimits | None = None,
+        inference: ValidationInference | None = None,
+    ) -> SliceValidation:
+        """Evaluate fixed discovered rules descriptively on holdout data."""
+        from ginsu.validation import validate_slices
+
+        return validate_slices(
+            self,
+            X,
+            errors,
+            min_support=min_support,
+            limits=limits,
+            inference=inference,
+        )
+
+    def select_slices(
+        self,
+        X: ArrayLike,
+        *,
+        method: SelectionMethod = "score",
+        k: int = 20,
+        max_jaccard: float = 0.8,
+        limits: SelectionLimits | None = None,
+    ) -> SliceSelection:
+        """Build an auditable post-selection view over fixed discoveries."""
+        from ginsu.selection import select_slices
+
+        return select_slices(
+            self,
+            X,
+            method=method,
+            k=k,
+            max_jaccard=max_jaccard,
+            limits=limits,
+        )
 
     @property
     def _n_features_out(self) -> int:
