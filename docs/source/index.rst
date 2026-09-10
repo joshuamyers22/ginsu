@@ -7,6 +7,7 @@
    Discretization
    Validation
    Selection
+   Stability
    Artifacts
    Visualization
    API

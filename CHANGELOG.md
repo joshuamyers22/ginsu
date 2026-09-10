@@ -39,6 +39,8 @@ after the pre-1.0 API is established.
   status, and bounded resampling work.
 - Auditable score, exact-membership, and greedy Jaccard-diversity selection
   views with representative, exclusion, and incremental-coverage evidence.
+- Failure-aware exact-rule stability aggregation across caller-controlled runs,
+  including recurrence, rank, score, support, and error-lift distributions.
 - Coverage measurement for the owned validation and optional Numba modules.
 
 ### Changed

@@ -31,8 +31,10 @@ optional deterministic percentile-bootstrap intervals and one-sided
 permutation tests with Holm correction are also implemented for testable fixed
 rules. Score, exact-membership, and greedy Jaccard-diversity post-selection are
 implemented as bounded audit views that preserve discovery ranking. Full-search
-permutation, stability analysis, comparison, notebook migration, and release
-hardening remain open.
+permutation remains open. Failure-aware exact-rule stability across
+caller-controlled runs is implemented; predicate/membership similarity and
+hyperparameter sensitivity remain open, as do comparison, notebook migration,
+and release hardening.
 
 ## 1. Executive summary
 

@@ -21,6 +21,12 @@ from .selection import (
     select_slices,
 )
 from .slicefinder import Slicefinder, is_numba_available
+from .stability import (
+    StabilityLimits,
+    StabilityReport,
+    StabilityRun,
+    evaluate_stability,
+)
 from .validation import (
     SliceValidation,
     ValidationInference,
@@ -49,9 +55,13 @@ __all__ = (
     "SliceSelection",
     "SliceValidation",
     "Slicefinder",
+    "StabilityLimits",
+    "StabilityReport",
+    "StabilityRun",
     "ValidationInference",
     "ValidationLimits",
     "is_numba_available",
+    "evaluate_stability",
     "select_slices",
     "validate_slices",
 )

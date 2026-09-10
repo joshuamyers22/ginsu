@@ -32,6 +32,20 @@ Post-selection
 .. autoclass:: ginsu.SelectionLimits
    :members:
 
+Stability
+---------
+
+.. autofunction:: ginsu.evaluate_stability
+
+.. autoclass:: ginsu.StabilityRun
+   :members: from_finder, unavailable
+
+.. autoclass:: ginsu.StabilityReport
+   :members:
+
+.. autoclass:: ginsu.StabilityLimits
+   :members:
+
 Search diagnostics
 ------------------
 

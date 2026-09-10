@@ -93,6 +93,11 @@ Build a compact view without overwriting raw discoveries:
 The complete decision table retains overlap blockers, capacity exclusions,
 empty reference memberships, and incremental coverage for auditability.
 
+Caller-controlled fold, resample, or time-window searches can be captured with
+``StabilityRun`` and aggregated with ``evaluate_stability``. Failed and
+limit-terminated attempts remain visible rather than being counted as false
+slice absences.
+
 Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
 compatible pandas and PyArrow tables enter through public Arrow or dataframe
 interchange protocols and produce Polars outputs. Ginsu production code does
