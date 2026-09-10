@@ -81,6 +81,12 @@ Add user-visible changes to the `Unreleased` section of
 [`CHANGELOG.md`](CHANGELOG.md). New public classes and functions must also be
 added to the appropriate API or task-oriented documentation page.
 
+Release candidates follow the build-once process in
+[`docs/RELEASE_PROCESS.md`](docs/RELEASE_PROCESS.md). Ordinary pull requests
+must not create version tags, publish packages, or create GitHub releases.
+Publication requires a separate owner approval after the release-readiness
+record is complete.
+
 ## Testing
 
 **Unit tests**

@@ -42,5 +42,12 @@ Success criteria and the staged acceptance evidence are defined in
 | Decision | Owner | Required before |
 |---|---|---|
 | PyPI publication authority and trusted-publisher environment | Project owner | First release candidate publication |
-| Supported Python/OS matrix | Maintainer | Locking the first release gate |
-| Exact Polars/Arrow and plotting dependency ranges | Maintainer | Phase 1 merge |
+
+## Resolved release inputs
+
+| Input | Decision | Evidence |
+|---|---|---|
+| Python support | CPython 3.10, 3.11, and 3.12 | `pyproject.toml`; `.github/workflows/release.yml` |
+| Operating-system smoke coverage | Core wheel on Linux, macOS, and Windows; extras and sdist on Linux | `.github/workflows/release.yml` |
+| Dependency ranges | Core and optional ranges are declared in `pyproject.toml`; the candidate gate uses the committed `uv.lock` | `pyproject.toml`; `uv.lock` |
+| Publication posture | Build-only candidates; package-index and GitHub Release publication disabled | `docs/adr/0016-build-only-release-candidates.md` |

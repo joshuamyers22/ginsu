@@ -147,6 +147,13 @@ while the first independent release is prepared:
 Once published, plotting will remain optional and installable with
 ``ginsu[plot]``.
 
+Ginsu currently declares CPython 3.10 through 3.12 support. Build-only release
+candidates exercise the core wheel on Linux, macOS, and Windows; core source,
+Numba optimization, pandas/PyArrow compatibility, and plotting profiles are
+also smoke-tested before a candidate is retained. See
+``docs/RELEASE_PROCESS.md`` for the exact matrix and
+``docs/RELEASE_READINESS.md`` for the current publication decision.
+
 ⚡ Performance Optimization
 ---------------------------
 
@@ -215,6 +222,8 @@ limitations.
 -  `Issue tracker <https://github.com/joshuamyers22/ginsu/issues>`__
 -  `SliceLine paper <https://mboehm7.github.io/resources/sigmod2021b_sliceline.pdf>`__
 -  `Upstream Sliceline project <https://github.com/DataDome/sliceline>`__
+-  `Release process <docs/RELEASE_PROCESS.md>`__
+-  `Release readiness <docs/RELEASE_READINESS.md>`__
 
 👐 Contributing
 ---------------

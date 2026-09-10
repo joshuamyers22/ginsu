@@ -59,8 +59,10 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-antoine.dedaran@datadome.co.
+reported privately to the project maintainer through the contact options on
+the [maintainer's GitHub profile](https://github.com/joshuamyers22). Do not
+include confidential incident details in a public issue. Security
+vulnerabilities follow the private process in [SECURITY.md](SECURITY.md).
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

@@ -4,10 +4,11 @@ version = "0.1.0"
 description = "Fast slice finding for Machine Learning model debugging."
 readme = "README.rst"
 license = "BSD-3-Clause"
+keywords = ["machine-learning", "model-debugging", "polars", "slice-finding"]
 authors = [
     { name = "Ginsu contributors" }
 ]
-requires-python = ">=3.10,<4"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "numpy>=1.25,<3",
     "polars>=1.30,<2",
@@ -35,6 +36,7 @@ Upstream = "https://github.com/DataDome/sliceline"
 
 [project.optional-dependencies]
 dev = [
+    "hatchling==1.32.0",
     "mypy>=1.15,<2",
     "pytest>=7.2.0",
     "pytest-benchmark>=4.0.0",
@@ -42,6 +44,7 @@ dev = [
     "ruff>=0.9.0",
     "Sphinx>=8.0.0",
     "sphinx-rtd-theme>=3.0.0",
+    "tomli>=2.2; python_version < '3.11'",
 ]
 compat = [
     "pandas>=2.1.1",
@@ -59,11 +62,24 @@ plot = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ginsu"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/.pre-commit-config.yaml",
+    "/.readthedocs.yml",
+    "/AGENTS.md",
+    "/CLAUDE.md",
+    "/PROJECT_MEMORY.md",
+    "/docs/POLARS_VISUALIZATION_PRODUCTION_PLAN.md",
+    "/docs/PROJECT_BRIEF.md",
+    "/docs/project_notes",
+]
 
 [tool.ruff]
 line-length = 79

@@ -66,6 +66,14 @@ after the pre-1.0 API is established.
   reference; canonical fitted-output documentation; and executable documentation
   examples in the quality gate.
 - Coverage measurement for the owned validation and optional Numba modules.
+- A build-once, non-publishing release-candidate workflow with source,
+  changelog, metadata, archive-content, and checksum validation.
+- Cross-platform installed-artifact smoke tests for CPython 3.10 through 3.12,
+  core, Numba, pandas/PyArrow compatibility, plotting, wheel, and sdist
+  profiles.
+- CycloneDX dependency SBOMs, unsigned candidate provenance, SHA-256 checksum
+  manifests, scheduled dependency updates, and explicit release-process and
+  readiness records.
 
 ### Changed
 
@@ -79,6 +87,18 @@ after the pre-1.0 API is established.
   performance-marked resource/parity checks.
 - Corrected inherited estimator documentation that implied minimum support or
   discovery ranking established statistical significance.
+- Bounded declared Python support to the tested CPython 3.10--3.12 matrix.
+- Pinned GitHub Actions to reviewed commit SHAs and consolidated inherited
+  release workflows into one immutable-candidate path.
+- Pinned the build backend and made candidate smoke environments consume the
+  committed lock before installing distribution bytes without re-resolution.
+- Excluded internal agent instructions, planning records, and CI configuration
+  from the source distribution.
+
+### Removed
+
+- The inherited network-based Python 3.13 checker tied to the removed
+  OptBinning dependency; readiness now follows the maintained evidence record.
 
 ### Fixed
 

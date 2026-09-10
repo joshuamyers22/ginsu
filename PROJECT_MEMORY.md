@@ -30,6 +30,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `search-profile-visualization` | Search profiles use bounded Polars funnel/cardinality/timing/summary data, keep early termination explicit, and render only recorded stage timing and caller-labeled boundary-memory evidence. | `docs/adr/0013-bounded-search-profile-visualization.md`; `docs/adr/0014-stage-diagnostics-and-artifact-v2.md`; `ginsu/_search_plot_data.py`; `ginsu/plotting.py`; `tests/test_search_plotting.py` | 2026-09-10 |
 | `stage-diagnostics` | Every normalized fit records deterministic stage durations from the injected monotonic clock. Optional memory requires a caller sampler and semantic label; values are stage-boundary observations, not attributed allocation or an implicit continuous peak. | `docs/adr/0014-stage-diagnostics-and-artifact-v2.md`; `ginsu/diagnostics.py`; `ginsu/slicefinder.py`; `tests/test_diagnostics.py` | 2026-09-10 |
 | `offline-polars-notebooks` | Maintained notebooks use deterministic synthetic domain-style fixtures, disjoint model-training/discovery/validation partitions, error-independent Ginsu discretization, cleared outputs, and a pandas-free execution environment. External pandas/PyArrow interoperability remains isolated in compatibility tests and documentation. | `docs/adr/0015-offline-polars-notebooks.md`; `notebooks/`; `tests/test_notebook_contract.py`; `.github/workflows/push-pull.yml` | 2026-09-10 |
+| `build-only-release-candidates` | Release automation builds one wheel and sdist after the locked gate, validates and inventories them, and smoke-tests the same artifact bundle across the supported matrix. It cannot publish or create a GitHub release. | `docs/adr/0016-build-only-release-candidates.md`; `.github/workflows/release.yml`; `scripts/release_tools.py` | 2026-09-10 |
 
 ## Non-obvious current state
 
@@ -53,6 +54,7 @@ tests, the project brief, and approved ADRs remain authoritative.
 | `search-profile-plotting` | Completed-level candidate funnels, stage duration, optional labeled boundary-memory observations, source cardinality, status, limits, backend, and copy boundaries render from bounded Polars data; pre-lattice failures remain visible. | `ginsu/_search_plot_data.py`; `ginsu/plotting.py`; `tests/test_search_plotting.py`; `docs/source/Visualization.rst` | 2026-09-10 |
 | `notebook-foundation` | Offline classification and regression notebooks exercise validation, selection, dependence, comparison, stability, artifacts, and search diagnostics from canonical Polars tables without pandas, OptBinning, Matplotlib, or runtime downloads. | `notebooks/`; `docs/source/Notebooks.rst`; `Makefile`; `.github/workflows/push-pull.yml` | 2026-09-10 |
 | `migration-guides` | Deliberate Sliceline, pandas-oriented, and NumPy migrations are documented without a compatibility import; canonical result tables, stable-ID membership, schema behavior, interpretation boundaries, and known limitations are explicit and the primary example is executable in the documentation gate. | `docs/source/Migration.rst`; `docs/source/Limitations.rst`; `docs/source/API.rst`; `Makefile` | 2026-09-10 |
+| `release-hardening-foundation` | Actions, uv, and Hatchling are pinned; candidate identity and archives are validated; one artifact bundle receives checksums, CycloneDX SBOM, unsigned provenance, and lock-backed installed smoke coverage across CPython 3.10--3.12 and supported profiles. Publication remains blocked. | `.github/workflows/release.yml`; `.github/dependabot.yml`; `tests/test_release_tools.py`; `docs/RELEASE_READINESS.md` | 2026-09-10 |
 
 ## Verified traps
 
@@ -64,4 +66,4 @@ tests, the project brief, and approved ADRs remain authoritative.
 
 | Key | Open decision | Evidence | Last verified |
 |---|---|---|---|
-| `pypi-publication` | PyPI authority and trusted-publisher configuration remain unapproved; release workflows stay build-only. | `docs/PROJECT_BRIEF.md`; `.github/workflows/release.yml` | 2026-09-09 |
+| `pypi-publication` | PyPI authority, trusted-publisher configuration, signed attestation, and TestPyPI validation remain unapproved or incomplete; release workflows stay build-only. | `docs/PROJECT_BRIEF.md`; `docs/RELEASE_READINESS.md`; `.github/workflows/release.yml` | 2026-09-10 |

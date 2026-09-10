@@ -49,8 +49,14 @@ The two maintained notebooks are migrated to deterministic offline Polars
 workflows with disjoint model-training, discovery, and validation partitions;
 their dedicated execution environment excludes pandas. Overlap-adjusted
 attribution, validation/stability-status deltas, structured time-window
-metadata and release hardening remain open. Sliceline, pandas-oriented, and
+metadata, and staged publication remain open. Sliceline, pandas-oriented, and
 NumPy migration guides plus a consolidated limitations reference are complete.
+The release-hardening foundation is now implemented: CI actions and uv are
+pinned, one validated wheel/sdist pair is built once, and the same candidate
+bundle receives checksums, a CycloneDX SBOM, unsigned provenance, and installed
+smoke coverage across CPython 3.10--3.12, Linux/macOS/Windows core wheels, and
+Linux optional profiles. Publication, signed attestation, protected trusted
+publishing, and TestPyPI evidence remain intentionally blocked.
 
 ## 1. Executive summary
 
@@ -1292,6 +1298,9 @@ Acceptance gate:
 
 ### Phase 10 — Release hardening and staged publication
 
+Status: the build-only hardening foundation is complete. External publication
+is not approved and the staged-publication acceptance gate remains open.
+
 Deliverables:
 
 - Consolidate CI and release workflows around the frozen lock and full gate.
@@ -1302,6 +1311,21 @@ Deliverables:
 - Test on supported Python versions, with and without Numba, core-only, Arrow
   interoperability, and plotting extras.
 - Publish a release candidate and complete the release-readiness checklist.
+
+Implemented foundation:
+
+- The consolidated candidate workflow runs the complete locked gate and builds
+  one wheel/sdist pair; every smoke job downloads those exact bytes.
+- Full-SHA action pins, pinned uv and Hatchling versions, lock-backed smoke
+  environments, Dependabot updates, source and archive validation, a CycloneDX
+  SBOM, unsigned provenance, and SHA-256 checksums are in place.
+- Core wheels cover CPython 3.10--3.12 on Linux, macOS, and Windows. Linux jobs
+  additionally cover Numba on every supported Python plus compatibility,
+  plotting, and source-distribution profiles.
+- The workflow contains no package-index or GitHub Release publication step.
+  Signed attestation, trusted-publisher protection, TestPyPI validation, an
+  actual approved release tag, and accountable publication approval remain
+  required.
 
 Acceptance gate:
 
@@ -1404,6 +1428,13 @@ Recommended workflow separation:
 - `benchmark.yml`: manual/scheduled retained benchmark evidence.
 - `release.yml`: tag-gated, environment-approved, build-once publication.
 - `dependabot.yml`: scheduled action and Python dependency updates.
+
+The current pre-publication implementation intentionally consolidates the full
+candidate gate and support matrix in `release.yml`, so every smoke job consumes
+one build artifact. `push-pull.yml` remains the ordinary change gate and
+`dependabot.yml` updates both action pins and the uv lock through reviewable
+pull requests. Workflow separation can be revisited if runtime or ownership
+boundaries require it; independent distribution rebuilds remain prohibited.
 
 Every job gets explicit minimal permissions. Publication uses PyPI trusted
 publishing. A release must never create a GitHub release in response to that same
