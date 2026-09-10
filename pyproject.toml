@@ -37,7 +37,7 @@ Upstream = "https://github.com/DataDome/sliceline"
 [project.optional-dependencies]
 dev = [
     "hatchling==1.32.0",
-    "mypy>=1.15,<2",
+    "mypy>=1.15,<3",
     "pytest>=7.2.0",
     "pytest-benchmark>=4.0.0",
     "pytest-cov>=3.0.0",
@@ -58,7 +58,7 @@ optimized = [
     "numba>=0.60.0",
 ]
 plot = [
-    "plotly>=6,<7",
+    "plotly>=6,<8",
 ]
 
 [build-system]
