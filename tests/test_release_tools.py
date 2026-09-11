@@ -6,11 +6,18 @@ import json
 import re
 import tarfile
 import zipfile
+from dataclasses import replace
 from email.message import EmailMessage
 from pathlib import Path
 
 import pytest
 
+from scripts.release_policy import (
+    PublicationPolicyError,
+    load_policy,
+    validate_repository,
+    validate_workflow_policy,
+)
 from scripts.release_tools import (
     CHECKSUM_FILE,
     ReleaseCheckError,
@@ -72,6 +79,7 @@ def _candidate_archives(tmp_path: Path) -> Path:
         "uv.lock",
         "ginsu/__init__.py",
         "ginsu/py.typed",
+        "scripts/release_policy.py",
         "scripts/release_tools.py",
         "scripts/smoke_release.py",
         "tests/test_release_tools.py",
@@ -194,18 +202,28 @@ def test_candidate_checksum_rejects_unlisted_directory(tmp_path: Path) -> None:
         verify_checksums(directory)
 
 
-def test_workflows_pin_actions_and_release_never_publishes() -> None:
+def test_workflows_pin_actions_to_immutable_commits() -> None:
     workflows = sorted((ROOT / ".github/workflows").glob("*.yml"))
     text = "\n".join(path.read_text(encoding="utf-8") for path in workflows)
     uses = re.findall(r"^\s*-\s+uses:\s+([^\s#]+)", text, re.MULTILINE)
 
     assert uses
     assert all(re.search(r"@[0-9a-f]{40}$", value) for value in uses)
-    assert "pypa/gh-action-pypi-publish" not in text.lower()
-    assert "uv publish" not in text.lower()
-    assert "twine upload" not in text.lower()
-    assert "gh release" not in text.lower()
 
+
+def test_disabled_publication_policy_is_enforced() -> None:
+    policy = load_policy(ROOT)
+
+    assert policy.enabled is False
+    assert policy.require_job_scoped_oidc is True
+    assert policy.require_build_once is True
+    assert policy.require_attestations is True
+    assert policy.allow_api_tokens is False
+    assert policy.allow_skip_existing is False
+    validate_repository(ROOT)
+
+
+def test_release_candidate_builds_once_and_reuses_artifacts() -> None:
     release = (ROOT / ".github/workflows/release.yml").read_text(
         encoding="utf-8"
     )
@@ -221,3 +239,161 @@ def test_workflows_pin_actions_and_release_never_publishes() -> None:
     ).read_text(encoding="utf-8")
     assert not (ROOT / ".github/workflows/test-release.yml").exists()
     assert CHECKSUM_FILE == "SHA256SUMS"
+
+
+def _enabled_workflow() -> str:
+    sha = "0" * 40
+    return f"""name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      publish_target:
+        type: choice
+  push:
+    tags:
+      - "v[0-9]*"
+permissions:
+  contents: read
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@{sha}
+      - run: uv build --clear
+  smoke:
+    needs: build
+    steps:
+      - uses: actions/download-artifact@{sha}
+  prepare-publication:
+    needs: [build, smoke]
+    steps:
+      - uses: actions/download-artifact@{sha}
+      - run: python scripts/release_tools.py verify-checksums --directory candidate
+      - uses: actions/upload-artifact@{sha}
+        with:
+          name: ginsu-publication-files
+          path: publication/
+  publish-pypi:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, smoke, prepare-publication]
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@{sha}
+        with:
+          name: ginsu-publication-files
+          path: publication/
+      - uses: pypa/gh-action-pypi-publish@{sha}
+        with:
+          packages-dir: publication/
+          attestations: true
+  publish-testpypi:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_target == 'testpypi'
+    needs: [build, smoke, prepare-publication]
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@{sha}
+        with:
+          name: ginsu-publication-files
+          path: publication/
+      - uses: pypa/gh-action-pypi-publish@{sha}
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: publication/
+          attestations: true
+"""
+
+
+def test_enabled_policy_accepts_only_gated_trusted_publishing() -> None:
+    policy = replace(load_policy(ROOT), enabled=True)
+
+    validate_workflow_policy(_enabled_workflow(), policy)
+
+
+@pytest.mark.parametrize(
+    ("unsafe", "message"),
+    [
+        (
+            lambda text: text.replace(
+                "environment:\n      name: pypi",
+                "environment: production",
+            ),
+            "environment",
+        ),
+        (
+            lambda text: text.replace(
+                "permissions:\n  contents: read",
+                "permissions:\n  contents: read\n  id-token: write",
+            ),
+            "workflow scope",
+        ),
+        (
+            lambda text: text.replace(
+                "github.event_name == 'push'",
+                "github.event_name == 'push' || github.event_name == 'workflow_dispatch'",
+                1,
+            ),
+            "version-tag pushes",
+        ),
+        (
+            lambda text: text.replace(
+                "pypa/gh-action-pypi-publish@" + "0" * 40,
+                "pypa/gh-action-pypi-publish@release/v1",
+                1,
+            ),
+            "full lowercase commit SHA",
+        ),
+        (
+            lambda text: text.replace(
+                "path: publication/",
+                "password: ${{ secrets.PYPI_TOKEN }}",
+            ),
+            "stored publication credentials",
+        ),
+        (
+            lambda text: text.replace(
+                "repository-url: https://test.pypi.org/legacy/",
+                "repository-url: https://test.pypi.org/legacy/\n"
+                "          skip-existing: true",
+            ),
+            "silently skip",
+        ),
+        (
+            lambda text: text.replace(
+                "      - uses: pypa/gh-action-pypi-publish@" + "0" * 40,
+                "      - run: echo unsafe\n"
+                "      - uses: pypa/gh-action-pypi-publish@" + "0" * 40,
+                1,
+            ),
+            "arbitrary shell commands",
+        ),
+        (
+            lambda text: text.replace(
+                "needs: [build, smoke, prepare-publication]",
+                "needs: [build, prepare-publication]",
+                1,
+            ),
+            "every required candidate gate",
+        ),
+        (
+            lambda text: text.replace(
+                "attestations: true", "attestations: false", 1
+            ),
+            "explicitly enable attestations",
+        ),
+        (
+            lambda text: text.replace(
+                "packages-dir: publication/", "packages-dir: candidate/", 1
+            ),
+            "staged directory",
+        ),
+    ],
+)
+def test_enabled_policy_rejects_unsafe_workflows(unsafe, message: str) -> None:
+    policy = replace(load_policy(ROOT), enabled=True)
+
+    with pytest.raises(PublicationPolicyError, match=message):
+        validate_workflow_policy(unsafe(_enabled_workflow()), policy)

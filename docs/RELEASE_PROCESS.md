@@ -1,7 +1,9 @@
 # Release process
 
 Ginsu currently produces build-only release candidates. The automation cannot
-publish to PyPI or TestPyPI and cannot create a GitHub release.
+publish to PyPI or TestPyPI and cannot create a GitHub release. The
+machine-readable contract in `.github/release-policy.toml` sets publication to
+false, and `scripts/release_policy.py` enforces that state in CI.
 
 ## Candidate prerequisites
 
@@ -25,13 +27,14 @@ steps in order:
 1. Install the pinned `uv` release and sync every dependency, including the
    exact Hatchling build backend, from `uv.lock`.
 2. Validate project, version, Python support, tag, and changelog identity.
-3. Run code, type, test, documentation, and notebook gates.
-4. Build one wheel and one source distribution.
-5. Reject unexpected, unsafe, or inconsistent archive contents and metadata.
-6. Create a CycloneDX 1.5 dependency SBOM and unsigned provenance record.
-7. Create and immediately verify a `SHA256SUMS` manifest.
-8. Upload the candidate bundle with 30-day retention.
-9. Download the same bundle in every smoke job, verify its checksums, create the
+3. Validate the release workflow against the publication policy.
+4. Run code, type, test, documentation, and notebook gates.
+5. Build one wheel and one source distribution.
+6. Reject unexpected, unsafe, or inconsistent archive contents and metadata.
+7. Create a CycloneDX 1.5 dependency SBOM and unsigned provenance record.
+8. Create and immediately verify a `SHA256SUMS` manifest.
+9. Upload the candidate bundle with 30-day retention.
+10. Download the same bundle in every smoke job, verify its checksums, create the
    profile from `uv.lock`, install the artifact with dependency resolution
    disabled, and exercise the selected profile.
 
@@ -62,7 +65,9 @@ cryptographic signature or SLSA attestation.
 
 ## Publication gate
 
-Do not publish until all of the following are separately approved and tested:
+Publication activation is a reviewed code and operations change, not an effect
+of creating a tag. Do not set `publication.enabled = true` or add publication
+jobs until all of the following are separately approved and tested:
 
 - PyPI project ownership and a least-privilege trusted-publisher environment.
 - Protected GitHub environment with accountable maintainer approval.
@@ -71,8 +76,23 @@ Do not publish until all of the following are separately approved and tested:
   pandas-interchange, plotting, and optimized profiles.
 - Final license, vulnerability, dependency, and release-readiness review.
 
-Adding publication requires a reviewed workflow change; it is not enabled by a
-tag or by a successful build-only candidate.
+The enabled workflow contract is fail-closed:
+
+- Production accepts only a version-tag push and uses the protected `pypi`
+  environment. TestPyPI accepts only an explicit manual `testpypi` target and
+  uses the protected `testpypi` environment.
+- Both publication jobs depend on build, smoke, and preparation gates, download
+  the same named staged artifact, and never rebuild distributions.
+- The trusted-publisher action and every other action use full commit SHAs.
+  Stored API tokens, `skip-existing`, and arbitrary shell commands in an OIDC
+  publication job are forbidden.
+- `id-token: write` is job-scoped; it is never granted at workflow scope. The
+  publisher's artifact attestations remain enabled.
+
+Repository tests verify this workflow shape. They cannot verify GitHub
+environment reviewers or the PyPI/TestPyPI trusted-publisher registrations, so
+those controls must be inspected and recorded in the readiness review. Adding
+publication still requires explicit owner approval.
 
 ## Failure and forward fix
 

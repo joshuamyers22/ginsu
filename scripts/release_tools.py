@@ -44,6 +44,7 @@ REQUIRED_SDIST_FILES = {
     "ginsu/__init__.py",
     "ginsu/py.typed",
     "scripts/release_tools.py",
+    "scripts/release_policy.py",
     "scripts/smoke_release.py",
     "tests/test_release_tools.py",
 }

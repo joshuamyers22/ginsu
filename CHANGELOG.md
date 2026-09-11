@@ -74,6 +74,9 @@ after the pre-1.0 API is established.
 - CycloneDX dependency SBOMs, unsigned candidate provenance, SHA-256 checksum
   manifests, scheduled dependency updates, and explicit release-process and
   readiness records.
+- A closed-schema trusted-publication policy and adversarial workflow tests for
+  tag-only production releases, protected environments, job-scoped OIDC,
+  attestations, and build-once artifact reuse while publication remains off.
 
 ### Changed
 

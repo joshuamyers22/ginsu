@@ -55,8 +55,10 @@ The release-hardening foundation is now implemented: CI actions and uv are
 pinned, one validated wheel/sdist pair is built once, and the same candidate
 bundle receives checksums, a CycloneDX SBOM, unsigned provenance, and installed
 smoke coverage across CPython 3.10--3.12, Linux/macOS/Windows core wheels, and
-Linux optional profiles. Publication, signed attestation, protected trusted
-publishing, and TestPyPI evidence remain intentionally blocked.
+Linux optional profiles. A closed-schema policy and adversarial workflow tests
+now enforce the disabled posture and the requirements for safe activation.
+Publication, signed attestation, protected trusted publishing, and TestPyPI
+evidence remain intentionally blocked.
 
 ## 1. Executive summary
 
@@ -1322,10 +1324,13 @@ Implemented foundation:
 - Core wheels cover CPython 3.10--3.12 on Linux, macOS, and Windows. Linux jobs
   additionally cover Numba on every supported Python plus compatibility,
   plotting, and source-distribution profiles.
-- The workflow contains no package-index or GitHub Release publication step.
-  Signed attestation, trusted-publisher protection, TestPyPI validation, an
-  actual approved release tag, and accountable publication approval remain
-  required.
+- The workflow contains no package-index or GitHub Release publication step. A
+  machine-readable policy and regression suite require any future publication
+  jobs to be tag/manual-target gated, environment protected, job-scoped for
+  OIDC, tokenless, build-once, and dependent on the same smoke and checksum
+  gates. Signed attestation, external trusted-publisher setup, TestPyPI
+  validation, an actual approved release tag, and accountable publication
+  approval remain required.
 
 Acceptance gate:
 
@@ -1435,6 +1440,14 @@ one build artifact. `push-pull.yml` remains the ordinary change gate and
 `dependabot.yml` updates both action pins and the uv lock through reviewable
 pull requests. Workflow separation can be revisited if runtime or ownership
 boundaries require it; independent distribution rebuilds remain prohibited.
+
+`.github/release-policy.toml` is the activation contract. Its validator runs in
+the candidate workflow and the test suite. While disabled, publication actions,
+commands, credentials, and OIDC write permission are prohibited. If enabled in
+a future reviewed change, it requires protected PyPI/TestPyPI environment
+bindings, tag-only production publication, an explicit TestPyPI target,
+job-scoped OIDC, immutable actions, attestations, and reuse of the checksum-
+verified artifact after all candidate gates.
 
 Every job gets explicit minimal permissions. Publication uses PyPI trusted
 publishing. A release must never create a GitHub release in response to that same

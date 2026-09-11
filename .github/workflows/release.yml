@@ -1,7 +1,7 @@
 name: Build release candidate
 
-# This workflow never publishes. PyPI and GitHub Release publication remain
-# blocked pending explicit owner approval and trusted-publisher configuration.
+# Publication is disabled by .github/release-policy.toml. Any future activation
+# must satisfy the tested trusted-publishing contract and readiness review.
 on:
   workflow_dispatch:
     inputs:
@@ -55,6 +55,8 @@ jobs:
           uv run --frozen python scripts/release_tools.py validate-source \
             --expected-version "${EXPECTED_VERSION}" \
             --ref "${GITHUB_REF}"
+      - name: Enforce release publication policy
+        run: uv run --frozen python scripts/release_policy.py
       - name: Run complete quality gate
         run: |
           make check

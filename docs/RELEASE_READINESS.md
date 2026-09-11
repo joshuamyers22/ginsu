@@ -2,7 +2,7 @@
 
 **Candidate version:** 0.1.0
 
-**Review date:** 2026-09-10
+**Review date:** 2026-09-11
 
 **Decision:** Not approved for publication
 
@@ -28,11 +28,21 @@ but it is not permission to publish.
   forward-fix guidance.
 - [x] Scheduled GitHub Actions and `uv` dependency updates.
 - [x] Publication commands and credentials absent from release automation.
+- [x] Closed-schema publication policy is enforced in the candidate workflow
+  and tests while publication remains disabled.
+- [x] Future activation tests require tag-only production publishing,
+  protected environment bindings, job-scoped OIDC, trusted publishing,
+  attestations, build-once artifact reuse, and all candidate gates.
+- [x] Adversarial workflow tests reject stored tokens, mutable actions,
+  workflow-wide OIDC, arbitrary publisher commands, skipped existing versions,
+  environment substitution, manual production publishing, and gate bypasses.
 
 ## Publication blockers
 
 - [ ] Project owner approves PyPI publication authority and namespace.
 - [ ] PyPI trusted publisher is configured with a protected GitHub environment.
+- [ ] Separate `pypi` and `testpypi` GitHub environments have required
+  reviewers and deployment restrictions configured and inspected.
 - [ ] An accountable maintainer approval gate is implemented and exercised.
 - [ ] Signed artifact attestation is generated and its verification documented.
 - [ ] TestPyPI installs and documented quickstarts pass for every required
@@ -46,6 +56,8 @@ but it is not permission to publish.
 
 - Candidate provenance is unsigned and must not be represented as an attested
   supply-chain statement.
+- Repository policy tests constrain workflow source but cannot verify external
+  GitHub environment or package-index trusted-publisher settings.
 - Optional dependency profiles run on Linux; macOS and Windows exercise the
   core wheel only.
 - CI candidate artifacts expire after 30 days and are not a durable release

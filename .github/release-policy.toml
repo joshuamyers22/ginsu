@@ -1,0 +1,25 @@
+schema_version = 1
+project = "ginsu"
+workflow = ".github/workflows/release.yml"
+
+[publication]
+# Publication stays off until the owner completes the external PyPI/TestPyPI
+# and protected-environment setup recorded in docs/RELEASE_READINESS.md.
+enabled = false
+action_repository = "pypa/gh-action-pypi-publish"
+production_job = "publish-pypi"
+production_environment = "pypi"
+production_ref_prefix = "refs/tags/v"
+test_job = "publish-testpypi"
+test_environment = "testpypi"
+test_input = "publish_target"
+test_input_value = "testpypi"
+preparation_job = "prepare-publication"
+publication_artifact = "ginsu-publication-files"
+publication_directory = "publication"
+required_needs = ["build", "smoke", "prepare-publication"]
+require_job_scoped_oidc = true
+require_build_once = true
+require_attestations = true
+allow_api_tokens = false
+allow_skip_existing = false
