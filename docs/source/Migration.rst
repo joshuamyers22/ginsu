@@ -1,5 +1,5 @@
-Migration guide
-===============
+Migrating to Ginsu
+==================
 
 Ginsu is an independent package, not a drop-in distribution replacement for
 Sliceline. Migration is deliberately explicit: install ``ginsu`` and change

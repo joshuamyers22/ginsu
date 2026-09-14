@@ -1,5 +1,5 @@
-Holdout validation
-==================
+Validating fixed slices
+=======================
 
 Ginsu evaluates discovered rules on untouched observations without searching
 again or changing their discovery order. This separates exploratory discovery
@@ -21,8 +21,8 @@ Polars is canonical; supported Arrow and pandas-interchange producers pass
 through the same boundary. ``validation_errors`` contains one finite,
 nonnegative realized loss per row.
 
-Fixed-rule contract
--------------------
+What validation holds fixed
+---------------------------
 
 ``validate_slices`` evaluates every discovered slice exactly once and returns
 rows in the original discovery-rank order. It does not refit preprocessing,
@@ -51,8 +51,8 @@ by the validation row count and rounded upward. ``None`` reuses the estimator's
 configured discovery threshold under the same rule. Every resolved threshold
 is at least one row.
 
-Interpretation boundary
------------------------
+What the default result means
+-----------------------------
 
 The current result declares ``evidence_kind="holdout_descriptive"``,
 ``interval_method="none"``, and ``multiplicity_method="none"``. It does not
@@ -60,8 +60,8 @@ provide confidence intervals, p-values, corrected significance, or causal
 claims. An all-zero validation loss vector is permitted; in that case lift and
 lift-delta values are null because the population baseline is zero.
 
-Optional fixed-rule inference
------------------------------
+Add fixed-rule inference explicitly
+-----------------------------------
 
 Inference is opt-in. The default remains descriptive because Ginsu cannot infer
 whether a caller's validation partition satisfies the required sampling and

@@ -1,8 +1,10 @@
-Safe analysis artifacts
-=======================
+Saving and loading analyses
+===========================
 
 ``SliceAnalysis`` saves fitted result tables and execution evidence without
-pickling an estimator or embedding source observations.
+pickling an estimator or embedding source observations. Use it when an analysis
+must be inspected, compared, or transported without trusting executable Python
+serialization.
 
 .. code:: python
 
@@ -25,8 +27,8 @@ pickling an estimator or embedding source observations.
        limits=ArtifactLimits(),
    )
 
-Format version 2
-----------------
+Understand the saved format
+---------------------------
 
 The artifact is a directory containing canonical UTF-8 ``manifest.json`` and
 three uncompressed Arrow IPC tables: ``slices.arrow``,
@@ -46,8 +48,8 @@ arbitrary class references are never included. Ginsu does not calculate a
 dataset fingerprint implicitly because the caller must define which columns,
 ordering, partition identity, and privacy treatment belong to that digest.
 
-Fail-closed loading
--------------------
+Load untrusted artifacts conservatively
+---------------------------------------
 
 The reader checks metadata, table, total-byte, row, and materialized-size
 limits before or during materialization. It rejects symlinks, nested or

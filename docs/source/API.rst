@@ -1,6 +1,39 @@
 API reference
 =============
 
+This reference is generated from the checkout's source signatures and
+docstrings. Read :doc:`GettingStarted` for the estimator workflow and the
+relevant user-guide page before combining validation, stability, comparison,
+or resource-limit options.
+
+Public API by task
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Task
+     - Main entry points
+   * - Discover slices
+     - :class:`~ginsu.Slicefinder`, :class:`~ginsu.SearchLimits`
+   * - Prepare features
+     - :class:`~ginsu.DiscretizationPlan`, :class:`~ginsu.FixedBins`,
+       :class:`~ginsu.EqualWidthBins`, :class:`~ginsu.QuantileBins`,
+       :class:`~ginsu.CategoryPolicy`
+   * - Validate fixed rules
+     - :func:`~ginsu.validate_slices`, :class:`~ginsu.ValidationInference`,
+       :class:`~ginsu.ValidationLimits`
+   * - Select a compact view
+     - :func:`~ginsu.select_slices`, :class:`~ginsu.SelectionLimits`
+   * - Aggregate repeated searches
+     - :class:`~ginsu.StabilityRun`, :func:`~ginsu.evaluate_stability`,
+       :func:`~ginsu.evaluate_similarity_stability`
+   * - Save and compare analyses
+     - :class:`~ginsu.SliceAnalysis`, :func:`~ginsu.compare_analyses`
+   * - Render figures
+     - :mod:`ginsu.plotting`
+
 Fitted estimator outputs
 ------------------------
 

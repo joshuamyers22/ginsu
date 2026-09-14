@@ -1,5 +1,5 @@
-Limitations and interpretation boundaries
-=========================================
+Interpretation and limitations
+==============================
 
 Ginsu discovers and ranks subpopulations with elevated observed model loss. It
 is a diagnostic component, not an autonomous decision system. The following

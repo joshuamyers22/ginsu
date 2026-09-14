@@ -1,240 +1,200 @@
 Ginsu
 =====
 
-Ginsu is a Python library for fast slice finding for machine-learning model
-debugging.
+**Fast, interpretable slice finding for machine-learning model debugging.**
 
-It is an independent evolution of DataDome's BSD-licensed Sliceline
-implementation of `SliceLine: Fast, Linear-Algebra-based Slice
-Finding for ML Model
-Debugging <https://mboehm7.github.io/resources/sigmod2021b_sliceline.pdf>`__,
-from Svetlana Sagadeeva and Matthias Boehm of Graz University of
-Technology.
+Ginsu finds subpopulations where a model has elevated observed loss. A slice
+is an interpretable conjunction of equality predicates, such as
+``region == "east" AND tier == "free"``. Results are Polars tables with stable
+rule identities, explicit resource diagnostics, and workflows for holdout
+validation, selection, stability, comparison, artifacts, and visualization.
 
-👉 Getting started
-------------------
+Ginsu is an independent evolution of DataDome's BSD-licensed Sliceline
+implementation of `SliceLine: Fast, Linear-Algebra-based Slice Finding for ML
+Model Debugging
+<https://mboehm7.github.io/resources/sigmod2021b_sliceline.pdf>`__, by Svetlana
+Sagadeeva and Matthias Boehm.
 
-Given an input dataset ``X`` and a model error vector ``errors``,
-Ginsu finds the top slices in ``X`` where an ML model has elevated observed
-loss. Discovery scores rank descriptive patterns; they are not statistical
-significance tests.
+Quick start
+-----------
 
-You can use Ginsu as follows:
+Ginsu takes categorical or discretized features and one finite, nonnegative
+realized model loss per row:
 
-.. code:: python
+.. code-block:: python
 
    import polars as pl
 
    from ginsu import Slicefinder
-   from ginsu.plotting import plot_error_dependence, plot_impact
 
-   X = pl.DataFrame(
+   discovery = pl.DataFrame(
+       {
+           "region": ["east", "east", "east", "east",
+                      "west", "west", "west", "west"],
+           "tier": ["free", "free", "pro", "pro",
+                    "free", "free", "pro", "pro"],
+       }
+   )
+   discovery_loss = [4.0, 3.0, 3.0, 2.0, 1.0, 1.0, 0.5, 0.5]
+
+   finder = Slicefinder(
+       alpha=0.90,
+       k=5,
+       max_l=2,
+       min_sup=2,
+       verbose=False,
+   ).fit(discovery, discovery_loss)
+
+   finder.slices_             # ranked rules with stable IDs
+   finder.slice_statistics_   # score, support, lift, and excess error
+   finder.predicates_         # typed long-form predicates
+   finder.search_report_      # execution status, timing, and active limits
+
+Train and evaluate the predictive model before calling Ginsu. Pass per-row
+loss—not labels or predictions—and fit any discretization only on the intended
+discovery partition.
+
+Validate fixed rules
+--------------------
+
+Discovery metrics describe the observations that were searched. Evaluate the
+unchanged rules on a separately prepared holdout partition before making a
+generalization claim:
+
+.. code-block:: python
+
+   validation_features = pl.DataFrame(
        {
            "region": ["east", "east", "west", "west"],
-           "tier": [1, 2, 1, 2],
+           "tier": ["free", "pro", "free", "pro"],
        }
    )
-   errors = [4.0, 3.0, 1.0, 1.0]
+   validation_loss = [3.0, 2.0, 1.0, 0.5]
 
-   slice_finder = Slicefinder(alpha=0.95, min_sup=1, verbose=False)
-
-   slice_finder.fit(X, errors)
-
-   print(slice_finder.slices_)
-   print(slice_finder.slice_statistics_)
-
-   membership = slice_finder.transform(X)
-   stable_membership = slice_finder.membership_frame(X)
-   impact_figure = plot_impact(slice_finder)
-   dependence_figure = plot_error_dependence(
-       slice_finder, X, errors, feature="tier"
+   validation = finder.validate_slices(
+       validation_features,
+       validation_loss,
+       min_support=1,
    )
+   validation.statistics
 
-Evaluate the unchanged discovered rules on a separately prepared holdout
-partition before making generalization claims:
+Validation preserves discovery order and retains rules with insufficient or no
+holdout support. The default result is descriptive. Optional percentile
+bootstrap intervals and one-sided permutation tests apply only to fixed returned
+rules under their documented assumptions; they do not correct the adaptive
+search or repeated holdout use.
 
-.. code:: python
+Choose a workflow
+-----------------
 
-   X_validation = pl.DataFrame(
-       {
-           "region": ["east", "west"],
-           "tier": [1, 2],
-       }
-   )
-   validation_errors = [2.0, 1.0]
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
 
-   validation = slice_finder.validate_slices(
-       X_validation,
-       validation_errors,
-       min_support=0.02,
-   )
+   * - Goal
+     - Operation
+   * - Prepare continuous or high-cardinality inputs
+     - Fit ``DiscretizationPlan`` on discovery features, then reuse
+       ``transform`` on validation features.
+   * - Preserve row identity while evaluating rules
+     - Use ``finder.membership_frame(data, row_id=...)``.
+   * - Create a short, auditable result
+     - Use ``finder.select_slices(..., method="diverse")`` without changing
+       the raw ranking.
+   * - Check recurrence across folds, resamples, or time windows
+     - Capture caller-controlled ``StabilityRun`` objects and aggregate them
+       with ``evaluate_stability`` or ``evaluate_similarity_stability``.
+   * - Compare a baseline and candidate model
+     - Create exhaustive ``SliceAnalysis`` artifacts and call
+       ``compare_analyses``.
+   * - Plot impact, overlap, stability, comparison, or search cost
+     - Install the ``plot`` extra and use ``ginsu.plotting``.
+   * - Save non-executable analysis evidence
+     - Write a ``SliceAnalysis`` directory containing canonical JSON and Arrow
+       IPC tables; raw observations are excluded.
 
-   print(validation.statistics)
+Interpretation
+--------------
 
-This first validation contract is descriptive: it preserves discovery order,
-labels insufficient support, and does not claim confidence intervals,
-significance, or multiplicity correction.
+Discovery score, minimum support, error lift, excess error, selection,
+stability, comparison, and plots are descriptive diagnostics. They are not
+statistical significance, causal effects, fairness certification, or deployment
+approval. Slices may overlap, so per-rule error totals cannot be added into an
+attribution waterfall without a separate allocation rule.
 
-Optional ``ValidationInference`` adds deterministic percentile-bootstrap
-intervals and one-sided permutation tests with Holm correction for fixed rules
-on a genuinely untouched validation partition. Its assumptions and the limits
-of that correction are documented in the holdout-validation guide.
+See the `limitations guide <docs/source/Limitations.rst>`__ for the complete
+statistical, data, resource, artifact, and reporting boundaries.
 
-Build a compact view without overwriting raw discoveries:
+Inputs and outputs
+------------------
 
-.. code:: python
+Polars is the canonical named-table interface. Compatible pandas and PyArrow
+tables enter through public Arrow or dataframe-interchange protocols; Ginsu
+does not import pandas in production. Named-table operations return Polars.
+Two-dimensional NumPy input remains supported, with ndarray output from
+``transform`` and ``get_slice``.
 
-   diverse = slice_finder.select_slices(
-       X_validation,
-       method="diverse",
-       k=20,
-       max_jaccard=0.80,
-   )
+Fitted feature names, order, and dtypes are enforced on later calls. Nulls,
+floating NaNs, implicit LazyFrame collection, and several nested or ambiguous
+dtypes are rejected rather than silently transformed. See the
+`interoperability guide <docs/source/Interoperability.rst>`__.
 
-The complete decision table retains overlap blockers, capacity exclusions,
-empty reference memberships, and incremental coverage for auditability.
+Installation
+------------
 
-Caller-controlled fold, resample, or time-window searches can be captured with
-``StabilityRun`` and aggregated with ``evaluate_stability``. Failed and
-limit-terminated attempts remain visible rather than being counted as false
-slice absences. ``evaluate_similarity_stability`` separately matches related
-rules by canonical predicate-set Jaccard or by membership Jaccard on a
-verified common reference population; exact identities are never overwritten.
-Optional ``plot_stability`` and ``plot_sensitivity`` render recurrence,
-run-level metric distributions, parameter response, and unavailable-run
-evidence without converting the Polars data contracts to pandas.
+Ginsu is not yet published on PyPI. From a checked-out repository, install the
+locked core environment with:
 
-Two exhaustive ``SliceAnalysis`` artifacts can be compared with
-``compare_analyses``. Exact IDs are matched first, optional related matches are
-one-to-one, incompatible feature/discretization semantics remain explicitly
-non-comparable, and every emerged or resolved rule stays in the Polars result.
-Optional ``plot_comparison`` dumbbell and reference-migration views preserve
-those unmatched outcomes and refuse to imply additive attribution across
-overlapping slices.
+.. code-block:: console
 
-``plot_search_report`` turns the immutable search report into bounded candidate
-funnel, per-stage timing, and source-cardinality diagnostics. An opt-in,
-caller-labeled memory sampler can add stage-boundary byte observations. The
-profile retains early limit termination, backend, copy-boundary, and
-active-limit evidence without presenting execution cost as model quality.
+   $ uv sync --frozen
 
-Polars is the canonical table interface. NumPy inputs preserve NumPy outputs;
-compatible pandas and PyArrow tables enter through public Arrow or dataframe
-interchange protocols and produce Polars outputs. Ginsu production code does
-not import pandas.
+Use ``uv sync --frozen --all-extras`` for the complete development environment.
+The optional extras are ``plot`` for Plotly, ``optimized`` for Numba,
+``compat`` for pandas/PyArrow compatibility checks, and ``notebooks`` for the
+maintained tutorials. Ginsu supports CPython 3.10 through 3.12.
 
-The ``notebooks/`` directory contains deterministic, offline Polars tutorials.
-They use synthetic Titanic-style and California-Housing-style fixtures so a
-clean checkout can execute them without downloading data:
+Documentation
+-------------
 
-1. Leakage-safe classification, fixed-rule validation, diversity, and plots
-2. Regression model comparison, stability, artifacts, and search diagnostics
+The documentation follows a task-oriented guide/reference split:
 
-See the `migration guide <docs/source/Migration.rst>`__ for deliberate moves
-from Sliceline, pandas-oriented code, legacy result attributes, or NumPy-only
-workflows.
+- `Getting started <docs/source/GettingStarted.rst>`__
+- `User guide <docs/source/UserGuide.rst>`__
+- `Examples and notebooks <docs/source/Notebooks.rst>`__
+- `API reference <docs/source/API.rst>`__
+- `Migration guide <docs/source/Migration.rst>`__
 
-🛠 Installation
----------------
+Build the warning-free site and execute its examples with:
 
-The ``ginsu`` distribution is not yet published. Install the working checkout
-while the first independent release is prepared:
+.. code-block:: console
 
-.. code:: sh
+   $ make doc
+   $ make doctest
 
-   uv sync --frozen --all-extras
+The maintained notebooks are deterministic, synthetic, and network-independent.
+Run them with ``make execute-notebooks``.
 
-Once published, plotting will remain optional and installable with
-``ginsu[plot]``.
+Development
+-----------
 
-Ginsu currently declares CPython 3.10 through 3.12 support. Build-only release
-candidates exercise the core wheel on Linux, macOS, and Windows; core source,
-Numba optimization, pandas/PyArrow compatibility, and plotting profiles are
-also smoke-tested before a candidate is retained. See
-``docs/RELEASE_PROCESS.md`` for the exact matrix and
-``docs/RELEASE_READINESS.md`` for the current publication decision.
+Read `CONTRIBUTING.md <CONTRIBUTING.md>`__ before proposing a change.
+``make check`` runs formatting, linting, type checking, tests, the documentation
+build, and documentation examples. Security reports should follow
+`SECURITY.md <SECURITY.md>`__.
 
-⚡ Performance Optimization
----------------------------
+Useful links
+------------
 
-Ginsu includes optional Numba JIT compilation for scoring operations.
+- `Source repository <https://github.com/joshuamyers22/ginsu>`__
+- `Issue tracker <https://github.com/joshuamyers22/ginsu/issues>`__
+- `SliceLine paper <https://mboehm7.github.io/resources/sigmod2021b_sliceline.pdf>`__
+- `Upstream Sliceline project <https://github.com/DataDome/sliceline>`__
+- `Release process <docs/RELEASE_PROCESS.md>`__
+- `Release readiness <docs/RELEASE_READINESS.md>`__
 
-**Quick Installation:**
-
-.. code:: sh
-
-   # With optimization support
-   pip install ginsu[optimized]
-
-**Benefits:**
-
-- 5-6x faster scoring operations
-- 1.4-4.5x faster overall fit() performance
-- Up to 17% memory reduction on large datasets
-- Automatic fallback to pure NumPy if Numba not available
-
-**System Requirements:**
-
-Numba requires LLVM to be installed:
-
-.. code:: sh
-
-   # macOS
-   brew install llvm
-
-   # Linux (Ubuntu/Debian)
-   sudo apt-get install llvm
-
-**Disabling Numba:**
-
-If you need to disable Numba JIT (e.g., in restricted environments), set the environment variable:
-
-.. code:: sh
-
-   export NUMBA_DISABLE_JIT=1
-
-**Docker / Read-only Filesystems:**
-
-Numba requires a writable cache directory. In Docker containers or read-only filesystems,
-set ``NUMBA_CACHE_DIR`` to a writable path:
-
-.. code:: dockerfile
-
-   ENV NUMBA_CACHE_DIR=/tmp/numba_cache
-
-If the cache directory is not writable, Ginsu will automatically fall back to pure NumPy.
-
-**Verify Optimization:**
-
-.. code:: python
-
-   from ginsu import is_numba_available
-
-   print("Numba available:", is_numba_available())
-
-See ``benchmarks/`` and ``NUMBA_OPTIMIZATION.md`` for current evidence and its
-limitations.
-
-🔗 Useful links
----------------
-
--  `Ginsu repository <https://github.com/joshuamyers22/ginsu>`__
--  `Issue tracker <https://github.com/joshuamyers22/ginsu/issues>`__
--  `SliceLine paper <https://mboehm7.github.io/resources/sigmod2021b_sliceline.pdf>`__
--  `Upstream Sliceline project <https://github.com/DataDome/sliceline>`__
--  `Release process <docs/RELEASE_PROCESS.md>`__
--  `Release readiness <docs/RELEASE_READINESS.md>`__
-
-👐 Contributing
----------------
-
-Feel free to contribute in any way you like, we’re always open to new
-ideas and approaches.
-
-Read ``CONTRIBUTING.md`` before proposing or implementing a change.
-
-📝 License
-----------
+License
+-------
 
 Ginsu is free and open-source software licensed under the 3-clause BSD license.
 The retained license notice records the upstream copyright.

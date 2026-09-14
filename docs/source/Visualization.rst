@@ -1,12 +1,16 @@
-Visualization
-=============
+Plotting and visual diagnostics
+===============================
 
 Install the optional Plotly renderer with ``ginsu[plot]`` once the package is
 published. In a source checkout, ``uv sync --frozen --all-extras`` installs it.
 Plot-data construction remains Polars-only and does not require Plotly.
 
-Impact plot
------------
+Plots display the evidence already held by a finder or result object. They do
+not add statistical significance, causal identification, or robustness beyond
+the supplied observations and runs.
+
+Rank slices by impact
+---------------------
 
 .. code:: python
 
@@ -19,8 +23,8 @@ Marker position shows observed error lift relative to the population baseline,
 marker size shows support, and color shows the SliceLine score. The dashed
 reference at lift 1 indicates population-average error.
 
-Predicate matrix
-----------------
+Inspect rule composition
+------------------------
 
 .. code:: python
 
@@ -34,8 +38,8 @@ show the predicate value used by that rule. Support, error lift, and score stay
 available in the hover detail. Cell and slice bounds are checked before the
 rectangular Polars table is materialized.
 
-Observed error-dependence plot
-------------------------------
+Inspect observed error dependence
+---------------------------------
 
 .. code:: python
 
@@ -60,8 +64,8 @@ This is descriptive error dependence. It is not a causal estimate and is not
 conventional model partial dependence. Use untouched validation errors when
 making generalization claims; discovery-set lift is exploratory.
 
-Overlap and equivalence
------------------------
+Inspect overlap and equivalence
+-------------------------------
 
 Use the stable-ID Polars tables directly when building a report or a custom
 renderer:
@@ -88,8 +92,8 @@ comparable. Slice, cell, and membership limits are checked before pairwise or
 row-by-slice materialization. Raising those limits is an explicit resource
 decision, not an automatic fallback.
 
-Rule-refinement lattice
------------------------
+Inspect the rule-refinement lattice
+-----------------------------------
 
 .. code:: python
 
@@ -105,8 +109,8 @@ exactly one more. Vertical levels are predicate counts; node size is support;
 node color is observed error lift. These edges describe logical rule
 refinement, not causality, dependence, or observed transitions.
 
-Stability and sensitivity
--------------------------
+Plot stability and sensitivity
+------------------------------
 
 Exact and similarity-aware stability reports share the same bounded renderer:
 
@@ -148,8 +152,8 @@ These are descriptive diagnostics across caller-declared runs. They do not
 establish significance, causality, or robustness beyond the supplied
 partitions and configurations.
 
-Analysis comparison
--------------------
+Plot analysis comparisons
+-------------------------
 
 .. code:: python
 
@@ -174,8 +178,8 @@ Incompatible analyses render their compatibility status explicitly. These
 figures are descriptive and per-rule: overlapping slices make a sum across
 bars or excess-error deltas non-attributive.
 
-Search profile
---------------
+Profile a search
+----------------
 
 .. code:: python
 

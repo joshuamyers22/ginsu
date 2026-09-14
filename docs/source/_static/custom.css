@@ -1,0 +1,59 @@
+.wy-nav-content {
+  max-width: 1120px;
+}
+
+.ginsu-meta {
+  color: #4b5563;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.ginsu-summary {
+  border-left: 4px solid #2f6f66;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  margin: 1.25rem 0 1.75rem;
+  padding: 0.35rem 0 0.35rem 1rem;
+}
+
+.ginsu-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1.5rem 0 2.25rem;
+}
+
+.ginsu-card {
+  border: 1px solid #d8dee4;
+  border-radius: 0.35rem;
+  color: #263238;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  text-decoration: none;
+}
+
+.ginsu-card:hover {
+  border-color: #2f6f66;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+}
+
+.ginsu-card strong {
+  color: #24574f;
+  font-size: 1.15rem;
+}
+
+.ginsu-card-label {
+  color: #69757d;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .ginsu-grid {
+    grid-template-columns: 1fr;
+  }
+}

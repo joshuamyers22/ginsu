@@ -1,5 +1,5 @@
-Comparing analyses
-==================
+Comparing two analyses
+======================
 
 ``compare_analyses`` compares two exhaustive ``SliceAnalysis`` artifacts. It
 never mutates or rewrites either artifact.
@@ -19,8 +19,8 @@ never mutates or rewrites either artifact.
    print(comparison.summary)
    print(comparison.changes)
 
-Matching
---------
+Match rules
+-----------
 
 Canonical IDs are matched first. With ``method="predicate"``, remaining rules
 are compared using Jaccard similarity over their canonical predicate sets.
@@ -34,8 +34,8 @@ maximizes global similarity. Exact, related, and unmatched rules remain
 distinguishable. Unmatched baseline rules are ``resolved``; unmatched candidate
 rules are ``emerged``.
 
-Direction and deltas
---------------------
+Interpret direction and deltas
+------------------------------
 
 Matched rules are ``regressed`` when candidate error lift minus baseline error
 lift exceeds ``direction_tolerance``. A negative delta beyond the tolerance is

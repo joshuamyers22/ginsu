@@ -1,5 +1,5 @@
-Stability across discovery runs
-===============================
+Checking stability across discovery runs
+=========================================
 
 Stability analysis aggregates discovery runs produced by caller-controlled
 folds, resamples, or time windows. Ginsu does not create those partitions or
@@ -58,8 +58,8 @@ An unavailable run produces null presence and metrics in ``slice_runs``. It is
 not treated as evidence that a slice was absent. A successful
 ``no_valid_slices`` run does provide true absence evidence.
 
-Exact stability metrics
------------------------
+Interpret exact recurrence
+--------------------------
 
 The initial implementation matches only identical canonical slice IDs. For
 each union rule, ``summary`` reports:
@@ -75,8 +75,8 @@ The attempted-run frequency is intentionally conservative but mixes missing
 results with absence; use the successful-run frequency for exact recurrence and
 inspect unavailable runs separately. Stability status never removes a rule.
 
-Similarity-aware stability
---------------------------
+Look for related rules
+----------------------
 
 Exact ID recurrence remains the primary, unambiguous result. A separate
 anchor-based analysis can show whether each canonical rule has a related rule

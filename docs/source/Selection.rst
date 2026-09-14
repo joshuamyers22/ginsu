@@ -1,8 +1,9 @@
-Diversity-aware selection
-=========================
+Choosing a compact slice set
+============================
 
 Post-selection creates a compact, auditable view of discovered rules without
-changing the fitted estimator or its raw ranking.
+changing the fitted estimator or its raw ranking. It is useful when several
+high-ranked rules describe the same or heavily overlapping observations.
 
 .. code:: python
 
@@ -20,8 +21,8 @@ The supplied frame defines empirical membership, equivalence, overlap, and
 incremental coverage. Use a clearly identified reference population; results
 can change when that population changes.
 
-Selection methods
------------------
+Choose a policy
+---------------
 
 ``score`` selects the first ``k`` discovery-ranked rules. It preserves the
 existing score-order behavior and does not exclude empty or overlapping
