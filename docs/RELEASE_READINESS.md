@@ -6,6 +6,11 @@
 
 **Decision:** Not approved for publication
 
+**Namespace and setup authority:** On 2026-09-13, project owner
+`@joshuamyers22` approved claiming the `ginsu` PyPI namespace and proceeding
+with the protected trusted-publication setup. Final production publication
+remains subject to the incomplete evidence and approval gates below.
+
 This record distinguishes implemented candidate controls from external
 publication authority. A successful build-only workflow is necessary evidence,
 but it is not permission to publish.
@@ -39,7 +44,7 @@ but it is not permission to publish.
 
 ## Publication blockers
 
-- [ ] Project owner approves PyPI publication authority and namespace.
+- [x] Project owner approves PyPI publication authority and namespace.
 - [ ] PyPI trusted publisher is configured with a protected GitHub environment.
 - [ ] Separate `pypi` and `testpypi` GitHub environments have required
   reviewers and deployment restrictions configured and inspected.

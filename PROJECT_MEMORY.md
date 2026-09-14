@@ -67,4 +67,4 @@ tests, the project brief, and approved ADRs remain authoritative.
 
 | Key | Open decision | Evidence | Last verified |
 |---|---|---|---|
-| `pypi-publication` | PyPI authority, protected `pypi`/`testpypi` environments, trusted-publisher configuration, signed attestation, and TestPyPI validation remain unapproved or incomplete; policy keeps the release workflow build-only. | `docs/PROJECT_BRIEF.md`; `docs/RELEASE_READINESS.md`; `.github/release-policy.toml`; `.github/workflows/release.yml` | 2026-09-11 |
+| `pypi-publication` | The project owner approved claiming the `ginsu` PyPI namespace and proceeding with trusted-publication setup on 2026-09-13. Protected `pypi`/`testpypi` environments, trusted-publisher configuration, signed attestation, TestPyPI validation, exact-candidate review, and final production approval remain incomplete; policy keeps the release workflow build-only. | `docs/PROJECT_BRIEF.md`; `docs/RELEASE_READINESS.md`; `.github/release-policy.toml`; `.github/workflows/release.yml` | 2026-09-13 |

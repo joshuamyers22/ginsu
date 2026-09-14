@@ -41,7 +41,7 @@ Success criteria and the staged acceptance evidence are defined in
 
 | Decision | Owner | Required before |
 |---|---|---|
-| PyPI publication authority and trusted-publisher environment | Project owner | First release candidate publication |
+| Final production publication after TestPyPI and candidate review | Project owner | PyPI publication |
 
 ## Resolved release inputs
 
@@ -50,4 +50,5 @@ Success criteria and the staged acceptance evidence are defined in
 | Python support | CPython 3.10, 3.11, and 3.12 | `pyproject.toml`; `.github/workflows/release.yml` |
 | Operating-system smoke coverage | Core wheel on Linux, macOS, and Windows; extras and sdist on Linux | `.github/workflows/release.yml` |
 | Dependency ranges | Core and optional ranges are declared in `pyproject.toml`; the candidate gate uses the committed `uv.lock` | `pyproject.toml`; `uv.lock` |
-| Publication posture | Build-only candidates; a tested policy-as-code contract keeps package-index and GitHub Release publication disabled pending external controls and approval | `docs/adr/0016-build-only-release-candidates.md`; `docs/adr/0017-trusted-publication-policy.md` |
+| Publication authority | On 2026-09-13, the project owner approved claiming the `ginsu` PyPI namespace and proceeding with the trusted-publication setup. This is not final approval to publish a production artifact before the remaining readiness evidence is complete. | `docs/RELEASE_READINESS.md`; `docs/adr/0017-trusted-publication-policy.md` |
+| Publication posture | Build-only candidates remain enforced while protected environments, trusted-publisher registrations, signed attestation, TestPyPI validation, and final candidate review are completed. | `docs/adr/0016-build-only-release-candidates.md`; `docs/adr/0017-trusted-publication-policy.md` |
