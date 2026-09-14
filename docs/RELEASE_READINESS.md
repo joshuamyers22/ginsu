@@ -2,7 +2,7 @@
 
 **Candidate version:** 0.1.0
 
-**Review date:** 2026-09-11
+**Review date:** 2026-09-13
 
 **Decision:** Not approved for publication
 
@@ -46,8 +46,11 @@ but it is not permission to publish.
 
 - [x] Project owner approves PyPI publication authority and namespace.
 - [ ] PyPI trusted publisher is configured with a protected GitHub environment.
-- [ ] Separate `pypi` and `testpypi` GitHub environments have required
-  reviewers and deployment restrictions configured and inspected.
+- [x] Separate `pypi` and `testpypi` GitHub environments have required
+  reviewers and deployment restrictions configured and inspected. GitHub API
+  inspection on 2026-09-13 confirmed required reviewer `@joshuamyers22`, a
+  `v*` tag-only deployment policy for `pypi`, and a `main` branch-only policy
+  for `testpypi`.
 - [ ] An accountable maintainer approval gate is implemented and exercised.
 - [ ] Signed artifact attestation is generated and its verification documented.
 - [ ] TestPyPI installs and documented quickstarts pass for every required
