@@ -40,7 +40,7 @@ def _metadata() -> bytes:
     message["Requires-Python"] = "<3.13,>=3.10"
     for requirement in (
         "numpy<3,>=1.25",
-        "polars<2,>=1.30",
+        "polars<3,>=1.30",
         "scikit-learn<2,>=1.6.0",
         "scipy<2,>=1.12",
     ):

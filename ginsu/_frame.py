@@ -25,8 +25,9 @@ def normalize_frame(
     """Normalize a supported two-dimensional input to a Polars DataFrame.
 
     pandas support is provided through the public dataframe interchange
-    protocol. Arrow objects are accepted by Polars directly; Ginsu never
-    imports either producer library.
+    protocol. Arrow objects are accepted by Polars directly. Legacy
+    interchange-only producers use the optional PyArrow protocol consumer
+    on Polars 2; Ginsu never imports pandas.
     """
     if isinstance(data, pl.LazyFrame):
         raise TypeError(
@@ -62,7 +63,18 @@ def normalize_frame(
             ) from error
         result = FrameInput(frame, "arrow")
     elif hasattr(data, "__dataframe__"):
-        result = FrameInput(pl.from_dataframe(data), "interchange")
+        if int(pl.__version__.split(".")[0]) < 2:
+            frame = pl.from_dataframe(data)
+        else:
+            try:
+                from pyarrow.interchange import from_dataframe
+            except ImportError as error:
+                raise ImportError(
+                    "Interchange-only inputs on Polars 2 require "
+                    "ginsu[compat], or an Arrow PyCapsule producer."
+                ) from error
+            frame = pl.DataFrame(from_dataframe(data))
+        result = FrameInput(frame, "interchange")
     else:
         raise TypeError(
             "X must be a Polars DataFrame, a two-dimensional NumPy-like "

@@ -357,7 +357,7 @@ def test_valid_hash_does_not_hide_broken_table_relationships(
     analysis, _ = analysis_fixture
     artifact = analysis.write(tmp_path / "analysis")
     slices_path = artifact / "slices.arrow"
-    slices = pl.read_ipc(slices_path, memory_map=False).with_columns(
+    slices = pl.read_ipc(slices_path).with_columns(
         pl.when(pl.col("__ginsu_rank") == 1)
         .then(pl.lit("ginsu:v1:invalid"))
         .otherwise(pl.col("__ginsu_id"))

@@ -7,6 +7,8 @@ after the pre-1.0 API is established.
 
 ## Unreleased
 
+- Support Polars 2.x IPC readers and retain legacy dataframe interchange through the optional PyArrow consumer in ginsu[compat].
+
 ### Added
 
 - Independent Ginsu project identity and production implementation plan.
