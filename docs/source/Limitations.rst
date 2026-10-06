@@ -109,3 +109,11 @@ are versioned and tested, but future pre-1.0 releases may require a documented
 migration. The project does not provide a ``sliceline`` import alias. Python
 3.13, sample weighting, alternate baselines, distributed execution, and a
 hosted dashboard are not currently supported claims.
+
+Polars 2 compatibility
+----------------------
+
+Polars 1.30 and later 1.x releases and Polars 2.x are supported. On Polars 2,
+legacy producers exposing only ``__dataframe__`` require the optional
+``ginsu[compat]`` extra for PyArrow's public interchange consumer. Arrow
+PyCapsule producers and native Polars inputs do not need that adapter.

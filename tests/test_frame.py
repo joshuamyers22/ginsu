@@ -85,6 +85,23 @@ def test_arrow_table_uses_arrow_protocol():
     assert isinstance(finder.transform(table), pl.DataFrame)
 
 
+def test_interchange_only_producer_preserves_schema_and_rows():
+    pd = pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    frame, _ = _example()
+    source = pd.DataFrame(frame.to_dict(as_series=False))
+
+    class InterchangeOnly:
+        def __dataframe__(self, **kwargs):
+            return source.__dataframe__(**kwargs)
+
+    normalized = normalize_frame(InterchangeOnly())
+
+    assert normalized.kind == "interchange"
+    assert normalized.frame.schema == frame.schema
+    assert normalized.frame.rows() == frame.rows()
+
+
 def test_lazy_input_requires_explicit_collection():
     frame, _ = _example()
 

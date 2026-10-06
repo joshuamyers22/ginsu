@@ -282,7 +282,7 @@ class SliceAnalysis:
                     "GINSU_ARTIFACT_HASH", f"hash mismatch for table {name!r}"
                 )
             try:
-                frame = pl.read_ipc(table_path, memory_map=False)
+                frame = pl.read_ipc(table_path)
             except Exception as error:
                 raise ArtifactError(
                     "GINSU_ARTIFACT_TABLE_READ",
